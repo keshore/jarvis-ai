@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "localvoice"
+version = "0.1.0"
+description = "Local, private, hands-free voice for any AI: Whisper in, Kokoro out, nothing leaves your machine."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { text = "MIT" }
+dependencies = [
+  "numpy",
+  "sounddevice",
+  "soundfile",
+  "huggingface_hub",
+  "kokoro-onnx",
+  "mlx-whisper; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+localvoice = "localvoice.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

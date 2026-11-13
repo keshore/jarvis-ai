@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "Stop":             [{ "hooks": [{ "type": "command", "command": "localvoice hook claude-stop",   "async": true }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "localvoice hook claude-prompt" }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "localvoice hook claude-end" }] }]
+  }
+}

@@ -1,0 +1,8 @@
+# One term per line. Names Whisper tends to mishear: libraries, products, people, internal project names.
+# Copy to ~/.localvoice/glossary.txt and edit.
+Kubernetes
+kubectl
+Postgres
+TypeScript
+Next.js
+Tailwind
