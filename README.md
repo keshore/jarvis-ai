@@ -24,8 +24,8 @@ localvoice-ai doctor      # checks microphone, speakers and models
 ```
 
 Prefer pipx? `brew install pipx` (or `pip install pipx`), then
-`pipx install --python python3.12 git+https://github.com/keshore/localvoice-ai` and `localvoice-ai setup`.
-(Once on PyPI: `pipx install localvoice-ai`.) The first setup downloads the voice (~330 MB) and the Whisper model (~1.6 GB).
+`pipx install --python python3.12 localvoice-ai` and `localvoice-ai setup`.
+([PyPI page](https://pypi.org/project/localvoice-ai/).) The first setup downloads the voice (~330 MB) and the Whisper model (~1.6 GB).
 
 **2. The Claude Code plugin**, if you use Claude Code (Claude Code 2.1.275 or later):
 
