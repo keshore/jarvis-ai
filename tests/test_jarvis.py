@@ -281,3 +281,21 @@ def test_earlier_replies_can_be_fetched(tmp_path):
     from jarvis_ai import agents
     rs = agents.claude_replies(convo(tmp_path)["transcript"], 5)
     assert [r.split(":")[0] for r in rs] == ["First reply", "Second reply"]
+
+
+@pytest.mark.parametrize("said,ok", [
+    ("Sure.", True), ("Yep, that's the cloud.", True), ("yes please", True), ("okay go ahead", True), ("ask Claude", True), ("yeah sure ask it", True),
+    ("yes but also delete everything", False), ("sure, and also drop the table", False), ("no", False), ("not now", False),
+    ("what is this project about", False), ("yes wait", False), ("", False), ("sure thing my friend how are you today then", False),
+])
+def test_casual_yes(said, ok):
+    assert jarvis.casual_yes(said) is ok
+
+
+def test_readme_is_background_for_answers(tmp_path, monkeypatch):
+    (tmp_path / "README.md").write_text("# demo\n[![badge](http://x/y.svg)](http://x)\nA tool that plans exam timetables for colleges.\n")
+    s = {**convo(tmp_path), "cwd": str(tmp_path)}
+    calls = script(monkeypatch, ["It plans exam timetables for colleges."])
+    assert jarvis.talk("what is this project about", s, TCFG) == ("say", "It plans exam timetables for colleges.")
+    assert "plans exam timetables" in calls[0][1]["content"] and "badge" not in calls[0][1]["content"]
+    assert jarvis.project_notes({"cwd": str(tmp_path / "nowhere")}) == ""

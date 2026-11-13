@@ -79,3 +79,15 @@ def test_a_one_off_request_does_not_change_the_default(monkeypatch):
     assert intent.interpret("I would like to hear everything it said", CFG) == ("command", "full")
     fake(monkeypatch, '{"action": "mode_brief"}')
     assert intent.interpret("from now on just the highlights", CFG) == ("command", "mode_brief")
+
+
+@pytest.mark.parametrize("said,kind", [("be quiet for a second", "stop"), ("okay that's enough", "stop"), ("hold on", "stop"), ("wait", "stop"),
+                                       ("wait for the build to finish then deploy", None), ("stop the server", None), ("quiet mode in the config", None)])
+def test_loose_stop(said, kind):
+    assert intent.loose(said) == kind
+
+
+def test_talk_mode_never_lets_the_model_turn_a_question_into_a_command(monkeypatch):
+    fake(monkeypatch, '{"action": "brief"}')
+    assert intent.interpret("can you summarize about this project", CFG, use_model=False) == ("forward", "can you summarize about this project")
+    assert intent.interpret("summarize that", CFG, use_model=False) == ("command", "brief")
