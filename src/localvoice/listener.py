@@ -210,6 +210,7 @@ def main():
                         print("  (awake)", flush=True)
                         continue
                 elif time.time() > awake_until:
+                    print(f"  (ignored, start with '{cfg['wake_word']}'): {text}", flush=True)
                     continue                                     # not for me: ignore room chatter
                 else:
                     awake_until = time.time() + wake_window
