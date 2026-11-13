@@ -38,10 +38,13 @@ git clone https://github.com/keshore/localvoice-ai && cd localvoice-ai && ./inst
 **2. The Claude Code plugin** (Claude Code 2.1.275 or later):
 
 ```
-/plugin install localvoice-ai --marketplace keshore/localvoice-ai
+/plugin marketplace add keshore/localvoice-ai
+/plugin install localvoice-ai@localvoice-ai
 ```
 
-Restart Claude Code and that is all: there is no command to run. When a session starts, voice switches itself on, loads the models in
+The same from a terminal: `claude plugin marketplace add keshore/localvoice-ai`, then `claude plugin install localvoice-ai@localvoice-ai`.
+Check with `claude plugin list`. Then **start a new Claude Code session**: sessions that were already open when you installed the plugin have no hooks.
+That is all: there is no command to run. When a session starts, voice switches itself on, loads the models in
 the background (about ten seconds) and listens. When your last session closes, everything stops and gives its memory back.
 
 **Optional: echo cancellation**, so you can interrupt the voice when it plays through speakers (headphones do not need it):
@@ -128,7 +131,7 @@ it and `localvoice-ai off` ends it. The voice daemon listens on `127.0.0.1` only
 |---|---|
 | Nothing happens when I talk | `localvoice-ai status`, then read `~/.localvoice-ai/listener.log`. A line `(ignored, start with 'hey claude')` means a wake word is set. |
 | No sound | check the system volume is not muted; `localvoice-ai doctor` checks the speakers; log: `~/.localvoice-ai/tts.log` |
-| Typing by voice works but replies are silent | that Claude session started before the plugin was installed, so it has no hooks: restart it. `localvoice-ai status` lists the sessions voice knows about. |
+| Typing by voice works but replies are silent | the plugin is not installed (`claude plugin list` should show `localvoice-ai`), or that session started before it was: start a new one. `localvoice-ai status` lists the sessions voice knows about. |
 | The voice interrupts itself | install the echo cancellation extra, or raise `barge_ratio` (try 3), or use headphones |
 | It does not notice me talking over it | install the echo cancellation extra (speakers feed the voice back into the mic), or use headphones; tune `aec_delay_ms` |
 | It picks up other people talking nearby | set a `wake_word`. Fans, keyboards and music are already ignored by the speech detector. |
