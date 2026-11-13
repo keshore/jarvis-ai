@@ -1,5 +1,5 @@
 """Talk to the always-warm text-to-speech daemon over a token-protected loopback socket (works on every OS)."""
-import socket, subprocess, sys, time
+import os, socket, subprocess, sys, time
 
 from . import config, platform_
 
@@ -32,17 +32,35 @@ def running():
 
 
 def ensure_server():
+    """Start the voice daemon if needed. A lock file stops two callers from starting two at once."""
     if running():
         return True
     config.ensure()
-    log = open(config.path("tts.log"), "ab")
-    subprocess.Popen([sys.executable, "-m", "localvoice.tts_server"], stdout=log, stderr=log,
-                     stdin=subprocess.DEVNULL, **platform_.detach_kwargs())
-    for _ in range(120):
-        if running():
-            return True
-        time.sleep(0.25)
-    return False
+    lock = config.path("tts.starting")
+    got = False
+    try:
+        if os.path.exists(lock) and time.time() - os.path.getmtime(lock) > 90:
+            os.unlink(lock)                                    # stale: a previous start died
+        os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+        got = True
+    except OSError:
+        pass                                                   # someone else is already starting it
+    try:
+        if got:
+            log = open(config.path("tts.log"), "ab")
+            subprocess.Popen([sys.executable, "-m", "localvoice.tts_server"], stdout=log, stderr=log,
+                             stdin=subprocess.DEVNULL, **platform_.detach_kwargs())
+        for _ in range(240):                                   # model load can take a while on a slow disk
+            if running():
+                return True
+            time.sleep(0.25)
+        return False
+    finally:
+        if got:
+            try:
+                os.unlink(lock)
+            except OSError:
+                pass
 
 
 def speak(text):

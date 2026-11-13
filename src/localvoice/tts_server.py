@@ -80,6 +80,9 @@ def worker():
 def main():
     global gen
     config.ensure()
+    from . import tts_client
+    if tts_client.running():                       # another daemon won the race: do not run a second copy
+        return
     token = secrets.token_hex(16)
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.bind(("127.0.0.1", 0))
