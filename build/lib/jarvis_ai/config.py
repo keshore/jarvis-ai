@@ -58,7 +58,7 @@ DEFAULTS = {
     "llm_backend": "auto",            # auto | mlx (Apple Silicon) | ollama (any machine) | openai (any OpenAI-compatible server)
     "llm_url": "",                    # backend openai: e.g. http://127.0.0.1:8080/v1 (llama.cpp), http://127.0.0.1:1234/v1 (LM Studio)
     "llm_api_model": "",              # backend openai: model name, if the server needs one
-    "llm_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",     # backend mlx (or Qwen3-1.7B-4bit, 1 GB)
+    "llm_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",     # backend mlx: any MLX model, or "auto" (picks 1.7B / 4B / 8B by memory)
     "ollama_model": "llama3.2:3b",    # backend ollama
     "ollama_url": "http://127.0.0.1:11434",
     "llm_idle_seconds": 300,          # unload the model from memory after this much idle time

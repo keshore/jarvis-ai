@@ -1,4 +1,4 @@
-import json, os
+import json, os, time
 
 import pytest
 
@@ -117,3 +117,20 @@ def test_model_is_chosen_by_memory(monkeypatch):
         monkeypatch.setattr(llm, "ram_gb", lambda gb=gb: gb)
         assert want in llm.model_name({"llm_model": "auto"})
     assert llm.model_name({"llm_model": "my/model"}) == "my/model"
+
+
+def test_an_ended_session_does_not_shadow_the_live_one_in_the_same_tab(home, monkeypatch):
+    from jarvis_ai import agents, platform_, sessions
+    old, new = "6cc7912f-0000-4000-8000-000000000001", "92f16f79-0000-4000-8000-000000000002"
+    sessions.register({"id": old, "sink": "iterm", "target": "TAB", "term": "TAB", "created": time.time() - 60, "hooks": True})
+    sessions.register({"id": new, "sink": "iterm", "target": "TAB", "term": "TAB", "created": time.time(), "hooks": True})
+    monkeypatch.setattr(platform_, "front_app", lambda: "iTerm2")
+    monkeypatch.setattr(platform_, "iterm_focused", lambda: "TAB")
+    assert sessions.current()["id"] == new                                    # newest wins even before any cleanup
+    live = {"id": new, "agent": "claude", "pid": os.getpid(), "name": "x", "cwd": "/w/x", "transcript": "/t", "busy": False, "sink": "iterm", "target": "TAB", "term": "TAB"}
+    monkeypatch.setattr(agents, "discover", lambda: [live])
+    jarvis.sync()
+    assert [s["id"] for s in sessions.all()] == [new]                         # Claude no longer lists the old one: forgotten
+    sessions.register({"id": "pty-123", "sink": "pty", "target": "/sock", "pid": os.getpid()})
+    jarvis.sync()
+    assert len(sessions.all()) == 2                                           # other kinds of sessions are left alone

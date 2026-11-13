@@ -82,8 +82,8 @@ def cmd_setup(a):
     if a.llm:
         if platform_.APPLE_SILICON and llm._mlx_available():
             from huggingface_hub import snapshot_download
-            print(f"fetching local model {cfg['llm_model']} ...")
-            snapshot_download(cfg["llm_model"])
+            print(f"fetching local model {llm.model_name(cfg)} ...")
+            snapshot_download(llm.model_name(cfg))
         else:
             print(f"optional local LLM: install Ollama (https://ollama.com) and run:  ollama pull {cfg['ollama_model']}")
     gl = config.path("glossary.txt")

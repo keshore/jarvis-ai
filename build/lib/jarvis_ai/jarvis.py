@@ -24,7 +24,7 @@ def sync():
         s = sessions.get(d["id"]) or {"id": d["id"], "created": time.time()}
         s.update(agent=d["agent"], pid=d["pid"], name=d["name"], cwd=d["cwd"], transcript=d["transcript"], busy=d["busy"])
         if not s.get("hooks") or not s.get("sink") or s.get("sink") == "none":
-            s.update(sink=d["sink"] or "none", target=d["target"], term=d["term"], app="")
+            s.update(sink=d["sink"] or "none", target=d["target"], term=d["term"], app=d.get("app", ""))
         sessions.register(s)
     return found
 
@@ -144,6 +144,9 @@ end tell''')
                 subprocess.run(["tmux", "select-pane", "-t", pane], timeout=3).returncode == 0
         except (OSError, subprocess.SubprocessError):
             return False
+    if s.get("sink") == "keystroke" and s.get("app"):
+        platform_.activate_app(s["app"])                  # the app comes to the front; we cannot pick a tab inside it
+        return True
     return False
 
 
@@ -174,10 +177,13 @@ def handle(rest, cfg, speak=None, say_reply=None, approve=gate.approve, backgrou
         raw = textprep.load_last(s["id"])
         (say_reply or (lambda r: speak(textprep.speak_text(r))))(raw) if raw else speak(f"I have no reply from {name} yet.")
     elif action == "switch":
-        speak(f"Switched to {name}." if focus(s) else f"I can't bring {name} to the front. It is not in iTerm or tmux.")
+        speak(f"Switched to {name}." if focus(s) else f"I can't bring {name} to the front.")
     elif action == "ask":
         if s.get("sink") in ("", "none", None):
-            speak(f"I can't type into {name}. It is not in iTerm or tmux.")
+            speak(f"I can't type into {name}. It is not in a terminal I can reach.")
+            return True
+        if s.get("sink") == "keystroke" and sum(1 for x in ss if x.get("sink") == "keystroke" and x.get("app") == s.get("app")) > 1:
+            speak(f"{name} shares its app with another session and I can't pick the tab, so I won't type there. Switch to it and say it yourself.")
             return True
 
         def go():

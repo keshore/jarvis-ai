@@ -99,9 +99,9 @@ def current():
         return None
     front = platform_.front_app()
     f = platform_.iterm_focused() if front.lower().startswith("iterm") else ""
-    for s in ss:
-        if f and f in (s.get("term"), s.get("target") if s["sink"] == "iterm" else None):
-            return s
+    here = [s for s in ss if f and f in (s.get("term"), s.get("target") if s["sink"] == "iterm" else None)]
+    if here:                                               # several entries for one tab (an old session, then a new one): the newest wins
+        return max(here, key=lambda s: (s.get("seen") or 0, s.get("created") or 0))
     for s in ss:
         if s["sink"] == "keystroke" and s.get("app") and front and s["app"].lower() in front.lower():
             return s

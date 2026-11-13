@@ -17,6 +17,9 @@ import os, re, subprocess, threading, time
 from . import agents, config, gate, platform_, sessions, sinks, textprep, tts_client
 
 
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
 # ---------- sessions found by the connectors -> the registry the router already uses ----------
 def sync():
     found = agents.discover()
@@ -26,6 +29,11 @@ def sync():
         if not s.get("hooks") or not s.get("sink") or s.get("sink") == "none":
             s.update(sink=d["sink"] or "none", target=d["target"], term=d["term"], app=d.get("app", ""))
         sessions.register(s)
+    if found or os.path.isdir(os.path.join(agents.claude_home(), "sessions")):
+        live = {d["id"] for d in found}
+        for s in sessions.all():                           # a Claude session Claude itself no longer lists has ended: it must not
+            if not s.get("pid") and _UUID.match(s["id"]) and s["id"] not in live:      # shadow the live one in the same tab
+                sessions.remove(s["id"])
     return found
 
 
