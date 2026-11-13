@@ -1,15 +1,15 @@
 #!/bin/sh
-# Finds the `localvoice-ai` command (PATH, pipx/uv, the default venv) and runs it with the given arguments.
+# Finds the `jarvis-ai` command (PATH, pipx/uv, the default venv) and runs it with the given arguments.
 # If it is not installed, the plugin stays quiet except for one hint at session start.
-for c in "$(command -v localvoice-ai 2>/dev/null)" "$HOME/.local/bin/localvoice-ai" "$HOME/.localvoice-ai/venv/bin/localvoice-ai" \
-         /opt/homebrew/bin/localvoice-ai /usr/local/bin/localvoice-ai; do
+for c in "$(command -v jarvis-ai 2>/dev/null)" "$HOME/.local/bin/jarvis-ai" "$HOME/.jarvis-ai/venv/bin/jarvis-ai" \
+         /opt/homebrew/bin/jarvis-ai /usr/local/bin/jarvis-ai; do
   if [ -n "$c" ] && [ -x "$c" ]; then exec "$c" "$@"; fi
 done
 if [ "$2" = "claude-start" ]; then
-  M="${XDG_CACHE_HOME:-$HOME/.cache}/localvoice-ai-hint-shown"
+  M="${XDG_CACHE_HOME:-$HOME/.cache}/jarvis-ai-hint-shown"
   if [ ! -e "$M" ]; then
     mkdir -p "$(dirname "$M")" && : > "$M"
-    printf '%s\n' '{"systemMessage":"localvoice-ai plugin: the localvoice-ai command is not installed yet. Run:  pipx install git+https://github.com/keshore/localvoice-ai && localvoice-ai setup   (then restart Claude Code)"}'
+    printf '%s\n' '{"systemMessage":"jarvis-ai plugin: the jarvis-ai command is not installed yet. Run:  pipx install git+https://github.com/keshore/jarvis-ai && jarvis-ai setup   (then restart Claude Code)"}'
   fi
 fi
 exit 0

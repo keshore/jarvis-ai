@@ -5,8 +5,8 @@ import pytest
 
 @pytest.fixture
 def lv(tmp_path, monkeypatch):
-    monkeypatch.setenv("LOCALVOICE_AI_HOME", str(tmp_path))
-    from localvoice_ai import config, aec
+    monkeypatch.setenv("JARVIS_AI_HOME", str(tmp_path))
+    from jarvis_ai import config, aec
     importlib.reload(config); importlib.reload(aec)
     return aec
 
@@ -28,7 +28,7 @@ def test_timeline_ignores_a_half_written_update(lv):
     aec.publish(np.ones(2400, np.float32) * 0.1, 24000, 5.0, 1)
     tl = aec.RefTimeline(); tl.poll()
     # a new meta announces more samples than ref.bin contains: must be ignored, not crash
-    from localvoice_ai import config
+    from jarvis_ai import config
     with open(config.path("ref.json"), "w") as fh:
         json.dump({"seq": 2, "t0": 6.0, "n": 99999}, fh)
     tl.poll()

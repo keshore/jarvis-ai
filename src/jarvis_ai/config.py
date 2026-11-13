@@ -1,4 +1,4 @@
-"""Paths, config file and small runtime state. Everything lives under one directory (default ~/.localvoice-ai)."""
+"""Paths, config file and small runtime state. Everything lives under one directory (default ~/.jarvis-ai)."""
 import os
 
 try:
@@ -9,7 +9,21 @@ except ModuleNotFoundError:          # Python < 3.11
     except ModuleNotFoundError:
         tomllib = None
 
-HOME = os.environ.get("LOCALVOICE_AI_HOME", os.path.expanduser("~/.localvoice-ai"))
+HOME = os.environ.get("JARVIS_AI_HOME", os.path.expanduser("~/.jarvis-ai"))
+
+
+def _migrate_legacy():
+    """The project used to be called localvoice-ai: move its folder (models, config) once, so nothing is downloaded again."""
+    old = os.path.expanduser("~/.localvoice-ai")
+    if "JARVIS_AI_HOME" in os.environ or os.path.exists(HOME) or not os.path.isdir(old) or os.path.exists(os.path.join(old, "venv")):
+        return
+    try:
+        os.rename(old, HOME)
+    except OSError:
+        pass
+
+
+_migrate_legacy()
 
 DEFAULTS = {
     # --- speech to text ---
@@ -30,7 +44,7 @@ DEFAULTS = {
     "end_silence": 0.65,              # seconds of quiet that ends an utterance
     "min_threshold": 0.02,            # volume floor (fallback gate, and level check for barge-in)
     "max_threshold": 0.06,            # ceiling: a noisy moment at startup must not make you inaudible
-    "echo_cancel": "auto",            # auto (WebRTC AEC if installed: pip install localvoice-ai[aec]) | off
+    "echo_cancel": "auto",            # auto (WebRTC AEC if installed: pip install jarvis-ai[aec]) | off
     "aec_delay_ms": 150,              # speaker -> microphone round trip on your machine
     "barge_in": True,                 # talk over the voice to interrupt it
     "barge_ratio": 2.2,               # how much louder than the echo you must be
@@ -71,7 +85,7 @@ def load():
         with open(f, "rb") as fh:
             cfg.update(tomllib.load(fh))
     for k in list(cfg):
-        v = os.environ.get("LOCALVOICE_AI_" + k.upper())
+        v = os.environ.get("JARVIS_AI_" + k.upper())
         if v is not None:
             d = DEFAULTS.get(k, "")
             cfg[k] = (v.lower() in ("1", "true", "yes", "on")) if isinstance(d, bool) else type(d)(v)

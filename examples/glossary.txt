@@ -1,5 +1,5 @@
 # One term per line. Names Whisper tends to mishear: libraries, products, people, internal project names.
-# Copy to ~/.localvoice-ai/glossary.txt and edit.
+# Copy to ~/.jarvis-ai/glossary.txt and edit.
 Kubernetes
 kubectl
 Postgres

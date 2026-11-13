@@ -1,6 +1,6 @@
 name: publish
 # Publishes to PyPI with "trusted publishing" (no token stored). One-time setup on pypi.org:
-#   add a pending publisher: project localvoice-ai, owner keshore, repo localvoice-ai, workflow publish.yml, environment pypi.
+#   add a pending publisher: project jarvis-ai, owner keshore, repo jarvis-ai, workflow publish.yml, environment pypi.
 # Then set the repository variable PUBLISH_TO_PYPI=true and publish a GitHub release.
 on:
   release:

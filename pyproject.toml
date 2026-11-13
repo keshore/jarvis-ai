@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "localvoice-ai"
+name = "jarvis-ai"
 version = "0.3.1"
 description = "Local, private, hands-free voice for any AI agent: speech in and out on your own machine, nothing leaves it."
 readme = "README.md"
@@ -42,13 +42,13 @@ keys = ["pynput; sys_platform != 'darwin'"]                                  # k
 dev = ["pytest"]
 
 [project.scripts]
-localvoice-ai = "localvoice_ai.cli:main"
+jarvis-ai = "jarvis_ai.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/keshore/localvoice-ai"
-Repository = "https://github.com/keshore/localvoice-ai"
-Issues = "https://github.com/keshore/localvoice-ai/issues"
-Changelog = "https://github.com/keshore/localvoice-ai/releases"
+Homepage = "https://github.com/keshore/jarvis-ai"
+Repository = "https://github.com/keshore/jarvis-ai"
+Issues = "https://github.com/keshore/jarvis-ai/issues"
+Changelog = "https://github.com/keshore/jarvis-ai/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]

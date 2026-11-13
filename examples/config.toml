@@ -1,4 +1,4 @@
-# Copy to ~/.localvoice-ai/config.toml
+# Copy to ~/.jarvis-ai/config.toml
 stt_model = "mlx-community/whisper-small.en-mlx"   # or mlx-community/whisper-large-v3-turbo
 voice = "af_heart"          # Kokoro voices: af_heart af_bella af_nicole am_michael bf_emma bm_george
 speed = 1.05

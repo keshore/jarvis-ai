@@ -2,14 +2,14 @@ import json, os, subprocess
 
 import pytest
 
-from localvoice_ai import gate
+from jarvis_ai import gate
 
 
 @pytest.fixture(autouse=True)
 def home(tmp_path, monkeypatch):
-    monkeypatch.setenv("LOCALVOICE_AI_HOME", str(tmp_path))
+    monkeypatch.setenv("JARVIS_AI_HOME", str(tmp_path))
     import importlib
-    from localvoice_ai import config
+    from jarvis_ai import config
     importlib.reload(config)
     importlib.reload(gate)
     return tmp_path

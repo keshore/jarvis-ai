@@ -7,7 +7,7 @@ Rules, all enforced here in plain code, never by a language model:
   * the default way to approve is a dialog you click: nobody can say it, play it or inject it through a microphone
   * spoken approval is optional (`approval = "voice"`), matched with strict patterns, and only for the proposal just read to you
   * everything not clearly a yes is a no (timeout, error, unsupported platform, ambiguous wording)
-  * every proposal and decision is written to ~/.localvoice-ai/audit.log"""
+  * every proposal and decision is written to ~/.jarvis-ai/audit.log"""
 import json, os, re, subprocess, sys, threading, time, uuid
 
 from . import config
@@ -48,9 +48,9 @@ end run"""
 
 def _dialog(p, timeout=DIALOG_TIMEOUT):
     if sys.platform == "darwin":
-        cmd = ["osascript", "-e", _APPLESCRIPT, f"localvoice-ai: approve {p.action}?", p.text, str(timeout)]
+        cmd = ["osascript", "-e", _APPLESCRIPT, f"jarvis-ai: approve {p.action}?", p.text, str(timeout)]
     elif sys.platform.startswith("linux") and __import__("shutil").which("zenity"):
-        cmd = ["zenity", "--question", "--title", f"localvoice-ai: approve {p.action}?", "--text", p.text.replace("&", "&amp;").replace("<", "&lt;"),
+        cmd = ["zenity", "--question", "--title", f"jarvis-ai: approve {p.action}?", "--text", p.text.replace("&", "&amp;").replace("<", "&lt;"),
                "--ok-label", "Approve", "--cancel-label", "Cancel", "--timeout", str(timeout)]
     else:
         return False, "no dialog available on this platform"

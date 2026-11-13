@@ -1,5 +1,5 @@
 {
-  "name": "localvoice-ai",
+  "name": "jarvis-ai",
   "owner": {
     "name": "keshore",
     "url": "https://github.com/keshore"
@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "localvoice-ai",
+      "name": "jarvis-ai",
       "source": "./adapters/claude-code",
       "description": "Hands-free voice for Claude Code, fully local. Switches on by itself; talk to it and hear its replies without anything leaving your machine.",
       "version": "0.3.1",

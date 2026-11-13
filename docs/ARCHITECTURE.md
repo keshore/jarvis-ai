@@ -8,15 +8,15 @@
                                                             |
                                    sink: iterm | tmux | keystroke | pty | exec | llm | stdout  --> your AI
 
- your AI -> hook / pipe / `localvoice-ai run` / clipboard -> textprep (brief | full) -> voice daemon (Kokoro, ONNX) -> speakers
+ your AI -> hook / pipe / `jarvis-ai run` / clipboard -> textprep (brief | full) -> voice daemon (Kokoro, ONNX) -> speakers
 ```
 
-- **Core** (`src/localvoice_ai`): `listener` (mic, VAD, barge-in, wake word, commands), `stt` (mlx / faster-whisper), `textprep`
+- **Core** (`src/jarvis_ai`): `listener` (mic, VAD, barge-in, wake word, commands), `stt` (mlx / faster-whisper), `textprep`
   (markdown to speakable text, brief or full, command recognition), `tts_server` / `tts_client` (warm Kokoro daemon on a
   token-protected loopback socket, in-process playback via sounddevice), `sessions` (registry + router), `sinks`, `ptyrun`
   (universal CLI wrapper), `llm` (optional, mlx or Ollama), `platform_` (every OS difference in one file), `config`, `cli`.
 - **Adapters** (`adapters/*`): thin glue per tool. `adapters/claude-code` is a Claude Code plugin (hooks only; the engine does the work).
-- **State** (`~/.localvoice-ai`): `config.toml`, `glossary.txt`, `sessions/*.json`, `last/<session>.md` (last reply, for "read it all"),
+- **State** (`~/.jarvis-ai`): `config.toml`, `glossary.txt`, `sessions/*.json`, `last/<session>.md` (last reply, for "read it all"),
   `tts.port` (0600), `mode`, `.off`, `.paused`, logs.
 - **Voice detection:** Silero VAD (ONNX, via `pysilero-vad`) gives a speech probability per 32 ms block; `vad.Segmenter` turns that into utterances
   with hysteresis (starts at 0.6 for three blocks, ends below 0.35 for 0.65 s, keeps a pre-roll). A volume gate is the fallback.

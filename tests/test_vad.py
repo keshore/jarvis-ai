@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from localvoice_ai import vad
+from jarvis_ai import vad
 
 B = vad.BLOCK
 

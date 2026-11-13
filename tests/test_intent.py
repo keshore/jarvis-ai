@@ -1,6 +1,6 @@
 import pytest
 
-from localvoice_ai import intent, llm
+from jarvis_ai import intent, llm
 
 
 @pytest.mark.parametrize("phrase,kind", [

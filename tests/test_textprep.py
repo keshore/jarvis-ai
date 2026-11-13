@@ -1,5 +1,5 @@
 import pytest
-from localvoice_ai import textprep as t
+from jarvis_ai import textprep as t
 
 
 @pytest.mark.parametrize("phrase,kind", [

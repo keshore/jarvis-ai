@@ -1,4 +1,4 @@
-"""localvoice-ai command line."""
+"""jarvis-ai command line."""
 import argparse, json, os, subprocess, sys, time, urllib.request
 
 from . import config, platform_, sessions, textprep, tts_client
@@ -27,14 +27,14 @@ def _spawn_listener():
         return False
     config.ensure()
     log = open(config.path("listener.log"), "ab")
-    p = subprocess.Popen([sys.executable, "-m", "localvoice_ai.listener"], stdout=log, stderr=log,
+    p = subprocess.Popen([sys.executable, "-m", "jarvis_ai.listener"], stdout=log, stderr=log,
                          stdin=subprocess.DEVNULL, env=os.environ.copy(), **platform_.detach_kwargs())
     config.write_state("listener.pid", str(p.pid))
     return True
 
 
 def _off():
-    """True after `localvoice-ai stop`/`off`: automatic start-up stays disabled until `localvoice-ai on`."""
+    """True after `jarvis-ai stop`/`off`: automatic start-up stays disabled until `jarvis-ai on`."""
     return os.path.exists(config.path(".off"))
 
 
@@ -53,7 +53,7 @@ def _interactive():
 
 def _auto_enable(sid):
     """Plugin path: register the session and make sure the listener is running. No command needed."""
-    if _off() or not config.load().get("autostart", True) or os.environ.get("LOCALVOICE_AI_DISABLE") or not _interactive():
+    if _off() or not config.load().get("autostart", True) or os.environ.get("JARVIS_AI_DISABLE") or not _interactive():
         return None
     s = sessions.get(sid)
     if not s:
@@ -90,14 +90,14 @@ def cmd_setup(a):
     if not os.path.exists(gl):
         with open(gl, "w") as fh:
             fh.write("# one term per line: names Whisper tends to mishear (project names, libraries, people)\n")
-    print("setup done. Next: `localvoice-ai start`")
+    print("setup done. Next: `jarvis-ai start`")
 
 
 def cmd_start(a):
     if a.model:
-        os.environ["LOCALVOICE_AI_STT_MODEL"] = a.model
+        os.environ["JARVIS_AI_STT_MODEL"] = a.model
     if a.sink:
-        os.environ["LOCALVOICE_AI_SINK"] = a.sink
+        os.environ["JARVIS_AI_SINK"] = a.sink
     if a.target:
         config.write_state("target", a.target)
     elif not config.read_state("target"):
@@ -130,7 +130,7 @@ def _stop_processes():
 def cmd_stop(a):
     _stop_processes()
     config.write_state(".off", "1")
-    print("stopped. It stays off (sessions will not restart it) until you run `localvoice-ai on`.")
+    print("stopped. It stays off (sessions will not restart it) until you run `jarvis-ai on`.")
 
 
 def cmd_on(a):
@@ -288,9 +288,9 @@ def cmd_hook(a):
 def cmd_run(a):
     cmd = [c for c in a.command if c != "--"] if a.command and a.command[0] == "--" else a.command
     if not cmd:
-        sys.exit("usage: localvoice-ai run [--no-speak] -- <command> [args...]")
+        sys.exit("usage: jarvis-ai run [--no-speak] -- <command> [args...]")
     if platform_.IS_WIN:
-        sys.exit("`localvoice-ai run` needs a Unix pseudo-terminal (macOS, Linux, or WSL on Windows).")
+        sys.exit("`jarvis-ai run` needs a Unix pseudo-terminal (macOS, Linux, or WSL on Windows).")
     from . import ptyrun
     ptyrun.run(cmd, speak=not a.no_speak, idle=a.idle)
 
@@ -308,7 +308,7 @@ def cmd_doctor(a):
 
     print(f"platform: {sys.platform}, python {sys.version.split()[0]}, speech backend: {stt.backend_name(cfg)}")
     for f in KOKORO_FILES:
-        check(f"voice model {f}", os.path.exists(config.path("models", f)), "run `localvoice-ai setup`")
+        check(f"voice model {f}", os.path.exists(config.path("models", f)), "run `jarvis-ai setup`")
     mods = ["sounddevice", "kokoro_onnx", "pysilero_vad", "mlx_whisper" if stt.backend_name(cfg) == "mlx" else "faster_whisper"]
     for mod in mods:
         try:
@@ -324,7 +324,7 @@ def cmd_doctor(a):
     except Exception as e:
         check("audio devices", False, f"{e} (Linux: install PortAudio, e.g. apt install libportaudio2)")
     from . import llm
-    check("local LLM", llm.backend(cfg) is not None, "optional: Apple Silicon `pip install 'localvoice-ai[llm]'`, or install Ollama", required=False)
+    check("local LLM", llm.backend(cfg) is not None, "optional: Apple Silicon `pip install 'jarvis-ai[llm]'`, or install Ollama", required=False)
     for tool, why in (("tmux", "tmux sink"), ("osascript", "iterm/keystroke sinks (macOS)"),
                       ("xdotool", "window detection on Linux/X11")):
         import shutil
@@ -344,8 +344,8 @@ get started:
   status      what is running, which sessions, which model
 
 use with any tool:
-  run         add voice to any interactive CLI:    localvoice-ai run -- aider
-  speak       read text aloud:                     some-agent | localvoice-ai speak
+  run         add voice to any interactive CLI:    jarvis-ai run -- aider
+  speak       read text aloud:                     some-agent | jarvis-ai speak
               (--mode full reads everything, default is a short version)
 
 while talking, say:
@@ -353,8 +353,8 @@ while talking, say:
   "read it all"  the whole reply     "summarize that"  a short version
 """
 HELP_END = """more commands (rarely needed): """ + ", ".join(ADVANCED) + """
-  'localvoice-ai <command> -h' shows the options of one command.
-files: ~/.localvoice-ai/config.toml, listener.log, tts.log      docs: https://github.com/keshore/localvoice-ai"""
+  'jarvis-ai <command> -h' shows the options of one command.
+files: ~/.jarvis-ai/config.toml, listener.log, tts.log      docs: https://github.com/keshore/jarvis-ai"""
 
 
 def _suggest(choices):
@@ -365,11 +365,11 @@ def _suggest(choices):
     w = sys.argv[1]
     near = [c for c in choices if c.startswith(w)] or difflib.get_close_matches(w, list(choices), n=2, cutoff=0.5)
     shown = " or ".join(f"'{c}'" for c in near[:3])
-    sys.exit(f"localvoice-ai: unknown command '{w}'" + (f" (did you mean {shown}?)" if near else "") + "\nrun 'localvoice-ai -h' for the commands")
+    sys.exit(f"jarvis-ai: unknown command '{w}'" + (f" (did you mean {shown}?)" if near else "") + "\nrun 'jarvis-ai -h' for the commands")
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="localvoice-ai", description=HELP_TOP, epilog=HELP_END,
+    ap = argparse.ArgumentParser(prog="jarvis-ai", description=HELP_TOP, epilog=HELP_END,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True, metavar="<command>", title=argparse.SUPPRESS)
 
