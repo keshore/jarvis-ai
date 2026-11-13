@@ -29,6 +29,7 @@ DEFAULTS = {
                   "No markdown, lists, code or symbols.",
     "wake_word": "",                  # e.g. "hey claude": ignore speech until you say it (then stay awake)
     "wake_window": 30,                # seconds you can keep talking after the wake word
+    "focus_follows": True,            # iterm sink: speech goes to the tab you are looking at (if voice-enabled)
     "app": "",                        # sink=keystroke: app to bring to front before typing
 }
 
@@ -54,6 +55,23 @@ def load():
             d = DEFAULTS[k]
             cfg[k] = (v.lower() in ("1", "true", "yes", "on")) if isinstance(d, bool) else type(d)(v)
     return cfg
+
+
+def enabled_targets():
+    """Terminal ids (iTerm session uuids) of all voice-enabled sessions."""
+    d = path("active")
+    out = set()
+    try:
+        for name in os.listdir(d):
+            try:
+                v = open(os.path.join(d, name)).read().strip()
+            except OSError:
+                continue
+            if v:
+                out.add(v.split(":")[-1])
+    except OSError:
+        pass
+    return out
 
 
 def read_state(name, default=""):

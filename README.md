@@ -68,6 +68,10 @@ localvoice say full                                              # re-read the l
 - **Talk to a local model instead of a cloud AI:** `localvoice start --sink llm`. Short conversation memory, reply printed and spoken.
 - Default model `mlx-community/Qwen3-4B-Instruct-2507-4bit` (2.3 GB); `Qwen3-1.7B-4bit` (1 GB) if memory is tight. Unloaded after `llm_idle_seconds` (300) of silence.
 
+## Several sessions: voice follows your eyes
+
+With the `iterm` sink and more than one voice-enabled session, your speech goes to **the tab you are looking at**, and only that session reads its reply aloud (a reply that finishes in a background tab is saved, so "read it all" works when you switch to it). Turn off with `focus_follows = false` to use "last tab you typed in" instead. A session joins the routing once it has run `/localvoice` or received a prompt.
+
 ## Room noise and talking over it
 
 - **Wake word:** set `wake_word = "hey claude"` in `config.toml`. Speech that does not start with it is ignored; after you say it you can keep talking for `wake_window` seconds (30).

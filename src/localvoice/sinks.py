@@ -31,6 +31,19 @@ class Sink:
 
 
 class Iterm(Sink):
+    def focused(self):
+        """UUID of the iTerm tab you are looking at ('' if unknown)."""
+        r = _osa('tell application "iTerm2" to return id of current session of current window')
+        return r.stdout.strip() if r.returncode == 0 else ""
+
+    def target(self):
+        if self.cfg.get("focus_follows", True):
+            f = self.focused()
+            if f and f in config.enabled_targets():
+                config.write_state("target", f)
+                return f
+        return super().target()
+
     def _write(self, clause):
         sid = self.target().split(":")[-1]
         if not sid:

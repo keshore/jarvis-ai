@@ -151,8 +151,8 @@ def cmd_target(a):
 # ---------- sessions (used by tool adapters) ----------
 def cmd_enable(a):
     os.makedirs(config.path("active"), exist_ok=True)
-    open(config.path("active", a.session), "w").close()
     t = a.target or os.environ.get("ITERM_SESSION_ID") or os.environ.get("TMUX_PANE") or ""
+    open(config.path("active", a.session), "w").write(t.split(":")[-1])
     if t:
         config.write_state("target", t)
     print("enabled", a.session)
@@ -181,6 +181,8 @@ def cmd_hook(a):
     if not os.path.exists(config.path("active", sid)):
         return
     t = os.environ.get("ITERM_SESSION_ID") or os.environ.get("TMUX_PANE") or ""
+    if t:
+        open(config.path("active", sid), "w").write(t.split(":")[-1])      # keep session -> terminal fresh
     if a.event == "claude-prompt":
         if t:
             config.write_state("target", t)
@@ -192,6 +194,12 @@ def cmd_hook(a):
         if raw.strip():
             for k in {t, t.split(":")[-1], sid} - {""}:
                 textprep.save_last(k, raw)
+            cfg = config.load()
+            if cfg["sink"] == "iterm" and cfg.get("focus_follows", True) and t:
+                from . import sinks
+                f = sinks.Iterm(cfg).focused()
+                if f and f != t.split(":")[-1]:
+                    return                                 # another tab is in front: stay quiet (reply is saved)
             tts_client.speak(textprep.speak_text(raw))
 
 
