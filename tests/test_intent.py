@@ -81,7 +81,7 @@ def test_a_one_off_request_does_not_change_the_default(monkeypatch):
     assert intent.interpret("from now on just the highlights", CFG) == ("command", "mode_brief")
 
 
-@pytest.mark.parametrize("said,kind", [("be quiet for a second", "stop"), ("okay that's enough", "stop"), ("hold on", "stop"), ("wait", "stop"),
+@pytest.mark.parametrize("said,kind", [("be quiet for a second", "stop"), ("okay that's enough", "stop"), ("hold on", "stop"), ("wait", "stop"), ("Hold on. Stop.", "stop"), ("okay stop stop", "stop"),
                                        ("wait for the build to finish then deploy", None), ("stop the server", None), ("quiet mode in the config", None)])
 def test_loose_stop(said, kind):
     assert intent.loose(said) == kind

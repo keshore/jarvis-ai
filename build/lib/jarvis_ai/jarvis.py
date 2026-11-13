@@ -466,6 +466,9 @@ def talk(text, s, cfg, speak=None, memory=None):
     if not llm.usable(cfg) or not t or _REQUEST.match(t):
         return "agent", ""
     ctx = agents.claude_context(s["transcript"], int(cfg.get("answer_context_chars", 12000))) if s and s.get("transcript") else ""
+    notes = project_notes(s)
+    if notes:                                              # so "what is this project about?" can be answered before the agent said anything
+        ctx = f"(The project's own README, for background:)\n{notes}\n\n(The conversation:)\n{ctx or '(nothing yet)'}"
     question, mem = looks_like_question(text), _memory(memory)
     small = bool(_SMALL.match(t)) and not _WORKY.search(t)
 
@@ -510,6 +513,35 @@ def _about_the_work(t, ctx):
     """Does the sentence use a distinctive word from the conversation? ('the timetable page' when the agent wrote about a timetable)"""
     words = {w for w in re.findall(r"[a-z]{5,}", t.lower())} - _STOPWORDS
     return bool(words) and bool(words & set(re.findall(r"[a-z]{5,}", ctx.lower())))
+
+
+def project_notes(s, limit=3500):
+    """The start of the project's README, as background Jarvis may answer from. Read as data, like everything else."""
+    cwd = (s or {}).get("cwd") or ""
+    if not cwd:
+        return ""
+    for name in ("README.md", "README.rst", "README.txt", "README", "readme.md"):
+        try:
+            with open(os.path.join(cwd, name), encoding="utf-8", errors="ignore") as fh:
+                text = fh.read(limit * 2)
+        except OSError:
+            continue
+        text = re.sub(r"<!--.*?-->|!\[[^\]]*\]\([^)]*\)|\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)", "", text, flags=re.S)       # badges, images, comments
+        return text.strip()[:limit]
+    return ""
+
+
+_YES_WORD = r"(?:yes|yeah|yep|yup|ya|sure|ok|okay|alright|absolutely|definitely|of course|please do|go ahead|go for it|do it|do that|ask|ask it|ask (?:claude|cloud|codex|him|her|them)|send it)"
+_YES = re.compile(rf"^{_YES_WORD}(?:\W+{_YES_WORD})*((?:\W+\w+){{0,4}})$")
+_NOPE = re.compile(r"\b(no|not|don't|dont|but|wait|never|cancel|stop|instead|except|also|and)\b")
+
+
+def casual_yes(text):
+    """A relaxed yes for "shall I ask Claude?": 'sure', 'yep, ask Claude', 'okay go ahead'. Only used to pass YOUR OWN words on
+    to the session in front, never for anything Jarvis composed (that needs the approval window)."""
+    t = re.sub(r"[^\w\s']", " ", text.lower()).strip()
+    m = _YES.match(re.sub(r"\s+", " ", t))
+    return bool(m) and not _NOPE.search(m.group(1) or "")
 
 
 def ask_line(s):

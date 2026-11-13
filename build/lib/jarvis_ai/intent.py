@@ -23,9 +23,15 @@ _FULL_W = {"all", "whole", "full", "entire", "complete", "completely", "fully", 
 _BRIEF_W = {"summary", "summarize", "summarise", "summarized", "short", "shorter", "brief", "briefly", "gist", "tldr", "tl;dr", "quick", "quickly"}
 
 
+_QUIET = re.compile(r"^(?:ok(?:ay)? |please |jarvis |hey )*(?:be quiet|quiet|silence|shut up|hush|enough|that's enough|thats enough|stop talking|stop reading|"
+                    r"hold on|wait|pause|one second|one moment|hang on)(?: please| now| for a (?:second|moment|minute|bit)| jarvis| thanks)*$")
+
+
 def loose(text):
     """Looser wording for the two most common requests, with no model: 'read me the whole thing', 'say all of it'."""
     words = re.sub(r"[^\w\s;']", " ", text.lower()).split()
+    if 1 <= len(words) <= 7 and _QUIET.search(" ".join(words)) and not any(w in ("the", "this", "that") and i > 3 for i, w in enumerate(words)):
+        return "stop"                                   # "be quiet for a second", "okay that's enough", "hold on"
     if not 2 <= len(words) <= 9:
         return None
     rest = [w for w in words if w not in _READ]
@@ -84,12 +90,13 @@ def _ask(text, cfg):
     return _parse(box.get("out", "")) if "out" in box else None      # None on timeout/failure: fail open
 
 
-def interpret(text, cfg):
-    """-> ("command", name) | ("answer", spoken text) | ("forward", text to send to the AI)."""
+def interpret(text, cfg, use_model=True):
+    """-> ("command", name) | ("forward", text to send on). `use_model=False`: only the fixed and loose phrases decide
+    (used when you talk to Jarvis, where the conversation step handles everything else)."""
     c = textprep.classify(text) or loose(text)
     if c:
         return "command", c
-    level = cfg.get("frontend", "commands")
+    level = cfg.get("frontend", "commands") if use_model else "off"
     if level == "off" or not llm.usable(cfg):
         return "forward", text
     if level == "commands" and len(text.split()) > MAX_WORDS_COMMANDS:

@@ -102,7 +102,8 @@ def JV():
 
 def voice_command(text, sink, key):
     """Handle the sentence if it is for us. Returns the text to forward to the AI, or None when it was handled here."""
-    kind, val = intent.interpret(text, CFG)
+    talking = CFG.get("talk_to", "jarvis") == "jarvis" and llm.usable(CFG)
+    kind, val = intent.interpret(text, CFG, use_model=not talking)      # when you talk to Jarvis, the conversation step decides the rest
     if kind == "forward":
         if val != text:
             print(f"  (cleaned up: {val})", flush=True)
@@ -283,9 +284,10 @@ def main():
             print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe] -> {where}", flush=True)
             pend = STATE.pop("pending", None)                   # Jarvis asked "shall I ask Claude?": a plain yes sends it, once
             if pend and time.time() < pend[2]:
-                if gate.is_yes(text):
+                if gate.is_yes(text) or jarvis.casual_yes(text):
                     print(f"> {text}   [yes: sent to the agent: {pend[0]}]", flush=True)
                     pend[1].send(pend[0])
+                    tts_client.speak("Asking now.", JV())
                     continue
                 if gate._NO.match(text.lower().strip()):
                     print(f"> {text}   [no]", flush=True)

@@ -23,8 +23,9 @@ _FULL_W = {"all", "whole", "full", "entire", "complete", "completely", "fully", 
 _BRIEF_W = {"summary", "summarize", "summarise", "summarized", "short", "shorter", "brief", "briefly", "gist", "tldr", "tl;dr", "quick", "quickly"}
 
 
-_QUIET = re.compile(r"^(?:ok(?:ay)? |please |jarvis |hey )*(?:be quiet|quiet|silence|shut up|hush|enough|that's enough|thats enough|stop talking|stop reading|"
-                    r"hold on|wait|pause|one second|one moment|hang on)(?: please| now| for a (?:second|moment|minute|bit)| jarvis| thanks)*$")
+_Q = (r"(?:be quiet|quiet|silence|shut up|hush|enough|that's enough|thats enough|stop|stop it|stop talking|stop reading|hold on|wait|pause|"
+      r"one second|one moment|hang on)")
+_QUIET = re.compile(rf"^(?:ok(?:ay)? |please |jarvis |hey )*{_Q}(?: {_Q})*(?: please| now| for a (?:second|moment|minute|bit)| jarvis| thanks)*$")
 
 
 def loose(text):

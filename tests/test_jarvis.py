@@ -299,3 +299,19 @@ def test_readme_is_background_for_answers(tmp_path, monkeypatch):
     assert jarvis.talk("what is this project about", s, TCFG) == ("say", "It plans exam timetables for colleges.")
     assert "plans exam timetables" in calls[0][1]["content"] and "badge" not in calls[0][1]["content"]
     assert jarvis.project_notes({"cwd": str(tmp_path / "nowhere")}) == ""
+
+
+@pytest.mark.parametrize("said,yes", [("I think it's already in the history. Can you...", True), ("refactor the login form and", True),
+                                      ("tell me about", True), ("Explain.", False), ("Is it done?", False), ("run the tests", False), ("Stop.", False)])
+def test_dangling(said, yes):
+    assert jarvis.dangling(said) is yes
+
+
+def test_narrating_instead_of_answering_is_rejected(tmp_path, monkeypatch):
+    script(monkeypatch, ["The person is asking for an explanation, likely referring to the previous interaction. I will explain the flow."])
+    assert jarvis.talk("explain", convo(tmp_path), TCFG) == ("agent", "")
+
+
+def test_a_leading_no_or_yes_does_not_hide_a_question(tmp_path, monkeypatch):
+    calls = script(monkeypatch, ["The import matched staff only by Emp ID."])
+    assert jarvis.talk("No, please tell me about the upload", convo(tmp_path), TCFG)[0] == "say" and "CONVERSATION" in calls[0][1]["content"]

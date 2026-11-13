@@ -401,12 +401,14 @@ most four short spoken sentences, plain words, no markdown, using ONLY what the 
 one" mean the agent's most recent reply unless they say "previous" or "earlier".
 In every other case reply with exactly the single word ASK. That includes: the answer is not in the conversation, you are not
 sure, it needs new work, code changes, running something, checking files, or an opinion or advice the conversation does not contain.
-Never guess. Never invent file names, numbers or results."""
+Never guess. Never invent file names, numbers or results.
+Speak directly to them as "you". Never describe what they are asking or what you are about to do: just say the answer.
+What "this project" is comes from the project's README, not from what was discussed."""
 
 ASK_LINES = ("That one needs {agent}. Shall I ask?", "I'd have to put that to {agent}. Shall I?", "That's beyond what I've seen. Shall I ask {agent}?",
              "{agent} would know. Want me to ask?")
 
-_POLITE = re.compile(r"^(?:(?:please|jarvis|hey|ok|okay|so|and|well|now)[\s,]+|(?:can|could|would|will) you (?:please )?|i(?:'d| would) like you to |i want you to )+", re.I)
+_POLITE = re.compile(r"^(?:(?:please|jarvis|hey|ok|okay|so|and|well|now|no|yes|yeah|right|actually|but|then|also)[\s,.]+|(?:can|could|would|will) you (?:please )?|i(?:'d| would) like you to |i want you to )+", re.I)
 _QUESTION = re.compile(r"^(?:what|why|how|when|where|who|which|whose|did|does|do|is|are|was|were|has|have|had|remind me|tell me|"
                        r"explain|summari[sz]e|recap|repeat|go over|walk me through|say (?:that|it) again|what about|give me (?:the|a) (?:summary|gist|short|key|main))\b", re.I)
 _REQUEST = re.compile(r"^(?:go ahead|let's|lets|you should|make|add|fix|run|create|update|change|remove|delete|write|build|implement|do it|"
@@ -417,6 +419,23 @@ _PREV = re.compile(r"\b(?:previous|earlier|the one before|before that|second to 
 _WORKY = re.compile(r"\b(code|file|files|test|tests|bug|build|deploy|commit|branch|migration|database|server|error|function|api|repo|"
                     r"pull request|merge|script|query|table|endpoint|package|install|log|logs|weather|news|temperature)\b|[\w-]+\.(?:py|ts|tsx|js|json|md|sql|toml|yml|yaml)\b|\d{2,}", re.I)
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️‍]+")
+
+
+_META = re.compile(r"\b(?:the (?:person|user) (?:is|was|wants|asks|asked|has|said|says|seems)|i will (?:explain|summarize|answer|describe|provide)|"
+                   r"they are asking|likely referring)\b", re.I)
+_DANGLE = set("and but or so because to the a an of about with for that if when which who can could would will should is are was i we you it "
+              "please then also like my your this these those".split())
+
+
+def dangling(text):
+    """Did the sentence stop half way ('Can you...', '... and')? Then the next thing you say belongs to it."""
+    t = text.strip()
+    if t.endswith("...") or t.endswith("\u2026"):
+        return True
+    if t.endswith(("?", "!")):
+        return False
+    words = re.findall(r"[a-z']+", t.lower())
+    return len(words) >= 2 and words[-1] in _DANGLE
 
 
 def bare(text):
@@ -491,7 +510,9 @@ def talk(text, s, cfg, speak=None, memory=None):
         out = _generate([{"role": "system", "content": ANSWER_SYSTEM % {"agent": agent_label(s)}},
                          {"role": "user", "content": f"CONVERSATION:\n{ctx}\n\n" + (f"EARLIER BETWEEN YOU AND THEM:\n{mem}\n" if mem else "") + f"THE PERSON NOW SAYS TO YOU: {text}"}], cfg, 200, speak)
         words = _EMOJI.sub("", textprep.inline(out)).strip()
-        return None if not words or re.search(r"\bASK\b", words) or len(words) > 800 else words
+        if not words or re.search(r"\bASK\b", words) or len(words) > 800 or _META.search(words):
+            return None                                    # unsure, rambling, or narrating instead of answering: the agent gets it
+        return words
 
     # obvious small talk: chat. A question: the conversation first, small talk only if that has no answer. Anything else: chat or the agent.
     steps = (chat,) if small else (answer, chat) if question else (chat,)

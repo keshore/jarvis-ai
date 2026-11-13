@@ -248,15 +248,29 @@ def main():
                 continue
 
             audio = seg.push(blk, p)
+            late = None
             if audio is None:
-                continue
+                fr = STATE.get("fragment")
+                if not fr or seg.active or time.time() - fr[1] < 3.5:
+                    continue
+                late, audio = STATE.pop("fragment")[0], []       # you never finished the sentence: take what you said
 
             t0 = time.time()
-            text, confident = tr.transcribe(audio, glossary)
-            if not confident:
-                continue                                         # likely a hallucination on noise
-            if text.lower().strip(" .!?,") in JUNK or re.fullmatch(r"[\W_]*", text):
-                continue
+            if late is None:
+                text, confident = tr.transcribe(audio, glossary)
+                if not confident:
+                    continue                                     # likely a hallucination on noise
+                if text.lower().strip(" .!?,") in JUNK or re.fullmatch(r"[\W_]*", text):
+                    continue
+                fr = STATE.pop("fragment", None)
+                if fr and time.time() - fr[1] < 12:              # the rest of a sentence you paused in
+                    text = fr[0] + " " + text
+                if jarvis.dangling(text) and not STATE.get("pending"):
+                    STATE["fragment"] = (re.sub(r"[.\u2026\s]+$", "", text), time.time())
+                    print(f"> {text}   (waiting for the rest)", flush=True)
+                    continue
+            else:
+                text = late
             if wake_rx:
                 m = wake_rx.match(text)
                 if m:
