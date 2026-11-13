@@ -319,7 +319,7 @@ def cmd_doctor(a):
     except Exception as e:
         check("audio devices", False, f"{e} (Linux: install PortAudio, e.g. apt install libportaudio2)")
     from . import llm
-    check("local LLM", llm.backend(cfg) is not None, "optional: Apple Silicon `pip install 'localvoice[llm]'`, or install Ollama", required=False)
+    check("local LLM", llm.backend(cfg) is not None, "optional: Apple Silicon `pip install 'localvoice-ai[llm]'`, or install Ollama", required=False)
     for tool, why in (("tmux", "tmux sink"), ("osascript", "iterm/keystroke sinks (macOS)"),
                       ("xdotool", "window detection on Linux/X11")):
         import shutil

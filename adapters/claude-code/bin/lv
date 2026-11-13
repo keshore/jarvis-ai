@@ -9,7 +9,7 @@ if [ "$2" = "claude-start" ]; then
   M="${XDG_CACHE_HOME:-$HOME/.cache}/localvoice-hint-shown"
   if [ ! -e "$M" ]; then
     mkdir -p "$(dirname "$M")" && : > "$M"
-    printf '%s\n' '{"systemMessage":"localvoice plugin: the localvoice command is not installed yet. Run:  pipx install localvoice && localvoice setup   (then restart Claude Code)"}'
+    printf '%s\n' '{"systemMessage":"localvoice plugin: the localvoice command is not installed yet. Run:  pipx install git+https://github.com/keshore/localvoice && localvoice setup   (then restart Claude Code)"}'
   fi
 fi
 exit 0

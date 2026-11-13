@@ -18,7 +18,7 @@ back never leave your computer: speech recognition (Whisper) and the voice (Koko
 **1. The engine** (any machine, Python 3.10-3.13):
 
 ```bash
-pipx install git+https://github.com/keshore/localvoice      # PyPI release coming; or: pip install .
+pipx install git+https://github.com/keshore/localvoice      # PyPI: `pipx install localvoice-ai` once published
 localvoice setup          # downloads the voice (~330 MB) and the Whisper model (~1.6 GB), once
 localvoice doctor         # checks microphone, speakers and models
 ```
@@ -32,7 +32,7 @@ localvoice doctor         # checks microphone, speakers and models
 That is all: there is no command to run. When a session starts, voice switches itself on, loads the models in the
 background and listens. Just talk. When your last session closes, everything stops and frees its memory.
 
-Linux needs PortAudio (`apt install libportaudio2`); on Linux/Windows the `keystroke` sink also needs `pip install 'localvoice[keys]'`.
+Linux needs PortAudio (`apt install libportaudio2`); on Linux/Windows the `keystroke` sink also needs `pip install 'localvoice-ai[keys]'`.
 
 ## Using it
 
@@ -70,7 +70,7 @@ Sinks, i.e. where your speech goes: `iterm`, `tmux`, `keystroke` (types into the
 ## Optional local LLM
 
 Nothing needs it. If one is available, "summarize that" uses it instead of the rule-based summary.
-- **Apple Silicon:** `pip install 'localvoice[llm]'` then `localvoice setup --llm` (Qwen3-4B, 2.3 GB, loaded on demand, unloaded after 5 idle minutes).
+- **Apple Silicon:** `pipx inject localvoice-ai mlx-lm` (or `pip install 'localvoice-ai[llm]'`), then `localvoice setup --llm` (Qwen3-4B, 2.3 GB, loaded on demand, unloaded after 5 idle minutes).
 - **Any machine:** install [Ollama](https://ollama.com) and `ollama pull llama3.2:3b`. It is detected automatically.
 
 ## Configuration

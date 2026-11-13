@@ -63,7 +63,7 @@ def activate_app(name):
 # ---------- typing into whatever has focus ----------
 def type_text(text, enter=True):
     """Type text into the focused window. macOS: AppleScript (needs Accessibility permission).
-    Elsewhere: pynput (pip install 'localvoice[keys]'; on Wayland use X11 or tmux)."""
+    Elsewhere: pynput (pip install 'localvoice-ai[keys]'; on Wayland use X11 or tmux)."""
     if IS_MAC:
         esc = text.replace("\\", "\\\\").replace('"', '\\"')
         osascript(f'tell application "System Events" to keystroke "{esc}"'
@@ -77,7 +77,7 @@ def type_text(text, enter=True):
             k.press(Key.enter); k.release(Key.enter)
         return True
     except Exception as e:
-        print(f"  (cannot type: {e}; install pynput: pip install 'localvoice[keys]')", flush=True)
+        print(f"  (cannot type: {e}; install pynput: pip install 'localvoice-ai[keys]')", flush=True)
         return False
 
 

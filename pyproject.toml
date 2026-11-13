@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "localvoice"
+name = "localvoice-ai"
 version = "0.2.0"
 description = "Local, private, hands-free voice for any AI agent: speech in and out on your own machine, nothing leaves it."
 readme = "README.md"
