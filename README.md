@@ -11,10 +11,12 @@ models. What you say and what the AI says back never leave your computer.
 
 - **Talk, don't type.** Your speech is typed into the session you are looking at.
 - **Hear the answer your way.** Brief by default. Say *"read it all"* for the whole reply, *"summarize that"* for a summary.
+- **Call it by name.** *"Jarvis, what's open?"*, *"Jarvis, switch to the portal session"*, *"Jarvis, ask the portal session to run the tests"*.
+- **No plugin needed.** It finds your AI sessions by itself and reads their replies from the agents' own transcripts.
+- **Nothing happens behind your back.** You see the real session. Anything Jarvis would type on its own needs your click on an approval window first.
 - **Talk over it.** Start speaking and it stops and listens (barge-in). Reliable on speakers too with the optional echo cancellation.
-- **No extra tokens.** Spoken commands are matched locally and the AI never sees them. The default summary is rule-based.
-- **Optional local LLM** for nicer summaries, or to chat with directly. Silently skipped if you do not have one.
-- **Works with** Claude Code (as a plugin), Codex, Copilot CLI, aider, ollama, desktop apps: anything with a terminal or a text box.
+- **Any local LLM, or none.** MLX, Ollama, or any OpenAI-compatible server (llama.cpp, LM Studio, vLLM) understands loosely worded requests. Without one, fixed phrases still work.
+- **Works with** Claude Code, Codex, Copilot CLI, aider, ollama, desktop apps: anything with a terminal or a text box.
 
 > **Status: early (v0.3).** Developed and tested on macOS with Apple Silicon. Linux, Intel Macs and Windows are supported by design and the
 > portable logic is unit-tested on all three in CI, but the audio path has not been exercised there yet. Reports and fixes are welcome.
@@ -35,17 +37,16 @@ No pipx? From a clone, `./install.sh` does the same with a private virtual envir
 git clone https://github.com/keshore/jarvis-ai && cd jarvis-ai && ./install.sh
 ```
 
-**2. The Claude Code plugin** (Claude Code 2.1.275 or later):
+**2. Start it:** `jarvis-ai on`. It finds running Claude Code sessions by itself (in iTerm2 or tmux it can also type into them and
+switch between them; in other terminals it types into the window in front). `jarvis-ai off` stops it.
+
+**Optional: the Claude Code plugin** starts and stops voice together with your sessions, so you never run `on` / `off`
+(Claude Code 2.1.275 or later):
 
 ```
 /plugin marketplace add keshore/jarvis-ai
 /plugin install jarvis-ai@jarvis-ai
 ```
-
-The same from a terminal: `claude plugin marketplace add keshore/jarvis-ai`, then `claude plugin install jarvis-ai@jarvis-ai`.
-Check with `claude plugin list`. Then **start a new Claude Code session**: sessions that were already open when you installed the plugin have no hooks.
-That is all: there is no command to run. When a session starts, voice switches itself on, loads the models in
-the background (about ten seconds) and listens. When your last session closes, everything stops and gives its memory back.
 
 **Optional: echo cancellation**, so you can interrupt the voice when it plays through speakers (headphones do not need it):
 `pipx inject jarvis-ai aec-audio-processing` (or `pip install 'jarvis-ai[aec]'`; Python 3.11+). It builds a small C++ library, so macOS needs the
@@ -79,6 +80,23 @@ jarvis-ai status     # what is running, which sessions, which model
 ```
 `JARVIS_AI_DISABLE=1` keeps voice off for a single session.
 
+### Talking to Jarvis itself
+
+Start a sentence with the name (`name` in the config, default "jarvis"):
+
+| Say | Does |
+|---|---|
+| "Jarvis, what's open?" | lists your sessions and whether each is working or idle |
+| "Jarvis, switch to the portal session" | brings that tab or pane to the front (iTerm2, tmux) |
+| "Jarvis, is the portal session done?" | working or finished |
+| "Jarvis, read the portal session's reply" | reads that session's last reply |
+| "Jarvis, ask the portal session to run the tests" | shows an approval window with the exact text, then types it there |
+
+Sessions are matched by project folder or session name. If two match equally, or none, Jarvis says so and does nothing.
+What you dictate to the session in front is typed as you said it. Everything else that would type somewhere needs your approval:
+a window with **Approve** / **Cancel** (Cancel is the default, no answer means no). Every proposal and decision is written to
+`~/.jarvis-ai/audit.log`. `approval = "voice"` allows a spoken "yes" instead: weaker, because anyone who can be heard can say it.
+
 ### Several sessions
 
 Your speech goes to **the session you are looking at** (the iTerm tab in front, or the desktop app in front), and only that session
@@ -104,6 +122,9 @@ Nothing needs it. When one is available, "summarize that" uses it instead of the
 - **Apple Silicon:** `pipx inject jarvis-ai mlx-lm` (or `pip install 'jarvis-ai[llm]'`), then `jarvis-ai setup --llm`.
   Qwen3-4B, 2.3 GB, loaded on demand and unloaded after five idle minutes.
 - **Any machine:** install [Ollama](https://ollama.com) and run `ollama pull llama3.2:3b`. It is detected automatically.
+- **Any other local server** that speaks the OpenAI chat API (llama.cpp, LM Studio, vLLM, Jan): set `llm_url`, e.g.
+  `llm_url = "http://127.0.0.1:8080/v1"` (and `llm_api_model` if the server wants a model name). A key, if needed, is read from the
+  `JARVIS_AI_LLM_KEY` environment variable. Keep the address on `127.0.0.1`: a server elsewhere receives what you say.
 
 ### The local model between you and the AI (`frontend`)
 
@@ -125,6 +146,9 @@ Each sentence waits for the model first (about a second on a 3 to 4B model), so 
 | `vad` | silero | `silero` (neural speech detector, recommended) or `volume` (plain loudness gate) |
 | `echo_cancel`, `aec_delay_ms` | auto, 150 | echo cancellation when installed; the speaker-to-microphone delay of your machine (150 fits a MacBook Pro) |
 | `barge_ratio` | 2.2 | only without echo cancellation: how much louder than the echo you must be to interrupt |
+| `name` | jarvis | the word that addresses the assistant itself; `""` turns that off |
+| `discover` | true | find agent sessions and read their replies without a plugin |
+| `approval` | dialog | `dialog` (click to approve) or `voice` (say yes; weaker) |
 | `frontend` | commands | `off`: exact phrases only. `commands`: loose wording, plus the local LLM for short unusual requests. `assistant`: the local LLM sees every sentence, of any length: it can run a command or forward your sentence lightly cleaned of dictation slips |
 | `mode` | brief | `brief` or `full` |
 | `voice`, `speed` | af_heart, 1.05 | Kokoro voice and speed |
@@ -154,7 +178,9 @@ it and `jarvis-ai off` ends it. The voice daemon listens on `127.0.0.1` only and
 - With it, the first second or so of an interruption can be clipped, and `aec_delay_ms` is tuned on one MacBook Pro; other machines may need a different value.
 - The speech detector separates speech from noise, not one speaker from another: use a `wake_word` if people talk near you.
 - `jarvis-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen terminal UIs redraw constantly, so prefer a tool's own hook.
-- Reading replies aloud needs a hook, a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
+- Finding sessions without a plugin reads Claude Code's own session list and transcripts. These are internal files and may change with a Claude Code update; the plugin is the fallback. Other agents use `run`, a hook or a pipe.
+- Switching to a session and typing into a session that is not in front need iTerm2 or tmux.
+- Reading replies aloud needs a transcript (Claude Code), a hook, a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
   read-back there yet.
 
 ## How it works

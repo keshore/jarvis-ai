@@ -260,3 +260,39 @@ def test_old_localvoice_folder_is_moved_once(tmp_path, monkeypatch):
     finally:
         monkeypatch.setenv("JARVIS_AI_HOME", str(tmp_path / "x"))
         importlib.reload(config)
+
+
+def test_any_openai_compatible_server_can_be_the_local_model(monkeypatch):
+    import http.server, threading
+    from jarvis_ai import llm
+    seen = {}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _send(self, obj):
+            body = json.dumps(obj).encode()
+            self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body)))
+            self.end_headers(); self.wfile.write(body)
+
+        def do_GET(self):
+            self._send({"data": []})
+
+        def do_POST(self):
+            seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            seen["auth"] = self.headers.get("Authorization")
+            self._send({"choices": [{"message": {"content": "<think>hmm</think>Hello there."}}]})
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        cfg = {"llm_backend": "openai", "llm_url": f"http://127.0.0.1:{srv.server_port}/v1", "llm_api_model": "any", "llm_max_tokens": 50,
+               "ollama_url": "http://127.0.0.1:9", "ollama_model": "x", "llm_model": "x"}
+        monkeypatch.setenv("JARVIS_AI_LLM_KEY", "secret")
+        assert llm.backend(cfg) == "openai"
+        assert llm.generate([{"role": "user", "content": "hi"}], cfg) == "Hello there."
+        assert seen["body"]["model"] == "any" and seen["auth"] == "Bearer secret"
+        assert llm.backend({**cfg, "llm_url": "http://127.0.0.1:9/v1"}) is None            # unreachable server: no backend, features fall back
+    finally:
+        srv.shutdown()
