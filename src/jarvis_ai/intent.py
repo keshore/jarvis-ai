@@ -3,8 +3,7 @@
   off        only the built-in phrases (textprep.classify) are commands
   commands   (default) built-in phrases, loose wording without any model, then, if a local LLM exists, short sentences that
              look like a request to the voice are interpreted by it. Everything else goes to the AI untouched.
-  assistant  the local LLM sees every sentence: it may run a command, answer a simple thing itself (the AI never sees it),
-             or forward the sentence to the AI, lightly cleaned of dictation slips.
+  assistant  the local LLM sees every sentence: it may run a command or forward the sentence to the AI, lightly cleaned of dictation slips.
 
 Guard rails: the model can only pick from a fixed list of actions; unsure, too slow, unavailable or malformed means the
 original sentence goes to the AI unchanged; a cleaned-up sentence is used only if it stays close to what you said."""
@@ -12,7 +11,9 @@ import difflib, json, re, threading
 
 from . import llm, textprep
 
-ACTIONS = ("forward", "full", "brief", "stop", "interrupt", "mode_full", "mode_brief", "clip_full", "clip_brief", "answer")
+ACTIONS = ("forward", "full", "brief", "stop", "interrupt", "mode_full", "mode_brief", "clip_full", "clip_brief", "help")
+_STANDING = re.compile(r"from now on|always|by default|every time|going forward|each time|from here on")
+_ABOUT_ME = re.compile(r"\b(you|your|yourself|jarvis|voice|assistant)\b")
 MAX_WORDS_COMMANDS = 12          # `commands` level: only short sentences are even considered
 
 _FILLER = set("it that this me the reply response answer message thing out loud aloud to of in please can you could would "
@@ -51,9 +52,10 @@ Actions:
   mode_full  from now on read every reply in full
   mode_brief from now on read only summaries
   clip_full / clip_brief   read / summarize the clipboard
-  answer     a trivial question about you (the voice) or small talk that the agent does not need; put your short spoken reply in "say"
+  help       the person asks what YOU (the voice assistant) can do or how to use you
+mode_full / mode_brief only when they clearly say "from now on", "always" or "by default"; a one-off request is full / brief.
 "text" is only for forward: the sentence with obvious speech-to-text slips fixed. Never add, remove or reorder ideas.
-When unsure, use forward with the sentence unchanged. Never use answer for anything about code or the project."""
+When unsure, use forward with the sentence unchanged."""
 
 
 def _parse(out):
@@ -98,7 +100,9 @@ def interpret(text, cfg):
         if cleaned and isinstance(cleaned, str) and difflib.SequenceMatcher(None, text.lower(), cleaned.lower()).ratio() >= 0.8:
             return "forward", cleaned.strip()
         return "forward", text
-    if d["action"] == "answer":
-        say = str(d.get("say", "")).strip()
-        return ("answer", say) if level == "assistant" and say else ("forward", text)
-    return ("command", d["action"]) if d["action"] != "answer" else ("forward", text)
+    action = d["action"]
+    if action == "help" and not _ABOUT_ME.search(text.lower()):
+        return "forward", text                          # a question about the code, not about the voice: the AI should get it
+    if action in ("mode_full", "mode_brief") and not _STANDING.search(text.lower()):
+        action = action[len("mode_"):]                  # "I'd like to hear everything" is a one-off, not a new default
+    return "command", action

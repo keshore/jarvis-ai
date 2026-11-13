@@ -59,12 +59,23 @@ def test_long_sentences_skip_the_model_at_commands_level(monkeypatch):
     assert intent.interpret(long, CFG) == ("forward", long)
 
 
-def test_assistant_level(monkeypatch):
+def test_assistant_level_cleans_but_never_invents_replies(monkeypatch):
     acfg = {"frontend": "assistant", "frontend_timeout": 2}
-    fake(monkeypatch, '{"action": "answer", "say": "I read your replies aloud."}')
-    assert intent.interpret("what do you do", acfg) == ("answer", "I read your replies aloud.")
-    assert intent.interpret("what do you do", CFG) == ("forward", "what do you do")            # not at `commands` level
+    fake(monkeypatch, '{"action": "answer", "say": "I know the answer to everything."}')           # no free-form answers exist any more
+    assert intent.interpret("what does the stop function do", acfg) == ("forward", "what does the stop function do")
+    fake(monkeypatch, '{"action": "help"}')
+    assert intent.interpret("what can you do", acfg) == ("command", "help")
+    fake(monkeypatch, '{"action": "help"}')
+    assert intent.interpret("what does the stop function do", acfg) == ("forward", "what does the stop function do")   # model misroute caught
     fake(monkeypatch, '{"action": "forward", "text": "Fix the login form."}')
     assert intent.interpret("fix the log in form", acfg) == ("forward", "Fix the login form.")
-    fake(monkeypatch, '{"action": "forward", "text": "Delete the production database."}')      # rewrite drifts too far
+    assert intent.interpret("fix the log in form", CFG) == ("forward", "fix the log in form")      # cleaning is assistant-level only
+    fake(monkeypatch, '{"action": "forward", "text": "Delete the production database."}')          # rewrite drifts too far
     assert intent.interpret("fix the log in form", acfg) == ("forward", "fix the log in form")
+
+
+def test_a_one_off_request_does_not_change_the_default(monkeypatch):
+    fake(monkeypatch, '{"action": "mode_full"}')
+    assert intent.interpret("I would like to hear everything it said", CFG) == ("command", "full")
+    fake(monkeypatch, '{"action": "mode_brief"}')
+    assert intent.interpret("from now on just the highlights", CFG) == ("command", "mode_brief")

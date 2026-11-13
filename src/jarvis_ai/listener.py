@@ -74,6 +74,10 @@ def speak_last(kind, key):
         tts_client.speak("I have nothing to read yet.")
 
 
+HELP_SPOKEN = ("I read your AI's replies aloud. Say stop to quiet me, interrupt to stop the AI, read it all for the whole reply, "
+               "summarize that for a short one, or read everything from now on to change the default. Anything else goes to the AI.")
+
+
 def voice_command(text, sink, key):
     """Handle the sentence if it is for us. Returns the text to forward to the AI, or None when it was handled here."""
     kind, val = intent.interpret(text, CFG)
@@ -81,10 +85,6 @@ def voice_command(text, sink, key):
         if val != text:
             print(f"  (cleaned up: {val})", flush=True)
         return val
-    if kind == "answer":
-        print(f"  (answered locally: {val})", flush=True)
-        tts_client.speak(val)
-        return None
     c = val
     print(f"  (command: {c})", flush=True)
     if c == "stop":
@@ -101,6 +101,8 @@ def voice_command(text, sink, key):
             speak_raw(raw, "full" if c == "clip_full" else "brief")
         else:
             tts_client.speak("The clipboard is empty.")
+    elif c == "help":
+        tts_client.speak(HELP_SPOKEN)
     elif c in ("mode_full", "mode_brief"):
         m = c.split("_")[1]
         textprep.set_mode(m)
