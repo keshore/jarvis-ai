@@ -438,6 +438,11 @@ def dangling(text):
     return len(words) >= 2 and words[-1] in _DANGLE
 
 
+_WHO = re.compile(r"^(?:(?:who|what) are you|what(?:'s| is) your name|what (?:can|do) you do|what are you (?:for|capable of)|introduce yourself)\b", re.I)
+ABOUT_ME = ("I'm Jarvis. I listen, answer what I can from your sessions, and pass the rest to {agent}. "
+            "With your permission, naturally.")
+
+
 def bare(text):
     """The sentence without politeness in front: 'can you please summarize that' -> 'summarize that'."""
     return _POLITE.sub("", text.strip())
@@ -484,6 +489,8 @@ def talk(text, s, cfg, speak=None, memory=None):
     t = bare(text)
     if not llm.usable(cfg) or not t or _REQUEST.match(t):
         return "agent", ""
+    if _WHO.match(t):                                       # about itself: fixed words, so it never misdescribes what it can do
+        return "say", ABOUT_ME.format(agent=agent_label(s))
     ctx = agents.claude_context(s["transcript"], int(cfg.get("answer_context_chars", 12000))) if s and s.get("transcript") else ""
     notes = project_notes(s)
     if notes:                                              # so "what is this project about?" can be answered before the agent said anything

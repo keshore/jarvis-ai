@@ -567,8 +567,9 @@ _NOPE = re.compile(r"\b(no|not|don't|dont|but|wait|never|cancel|stop|instead|exc
 def casual_yes(text):
     """A relaxed yes for "shall I ask Claude?": 'sure', 'yep, ask Claude', 'okay go ahead'. Only used to pass YOUR OWN words on
     to the session in front, never for anything Jarvis composed (that needs the approval window)."""
-    t = re.sub(r"[^\w\s']", " ", text.lower()).strip()
-    m = _YES.match(re.sub(r"\s+", " ", t))
+    t = re.sub(r"[^\w\s']", " ", text.lower())
+    t = re.sub(r"\b(?:please|then|well|jarvis|just|oh|um|uh)\b", " ", t)       # politeness and fillers do not change a yes
+    m = _YES.match(re.sub(r"\s+", " ", t).strip())
     return bool(m) and not _NOPE.search(m.group(1) or "")
 
 

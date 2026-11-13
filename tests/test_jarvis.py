@@ -284,7 +284,7 @@ def test_earlier_replies_can_be_fetched(tmp_path):
 
 
 @pytest.mark.parametrize("said,ok", [
-    ("Sure.", True), ("Yep, that's the cloud.", True), ("yes please", True), ("okay go ahead", True), ("ask Claude", True), ("yeah sure ask it", True),
+    ("Sure.", True), ("Yep, that's the cloud.", True), ("Please go ahead.", True), ("yes please, Jarvis", True), ("oh just do it then", True), ("yes please", True), ("okay go ahead", True), ("ask Claude", True), ("yeah sure ask it", True),
     ("yes but also delete everything", False), ("sure, and also drop the table", False), ("no", False), ("not now", False),
     ("what is this project about", False), ("yes wait", False), ("", False), ("sure thing my friend how are you today then", False),
 ])

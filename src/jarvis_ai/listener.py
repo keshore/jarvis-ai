@@ -307,6 +307,12 @@ def main():
                     print(f"> {text}   [no]", flush=True)
                     tts_client.speak("Very well.", JV())
                     continue
+                if len(text.split()) <= 4 and not textprep.classify(text) and pend[3] < 2:
+                    # a short reply that is neither yes nor no: do not treat it as a new request, ask once more
+                    STATE["pending"] = (pend[0], pend[1], time.time() + 25, pend[3] + 1)
+                    print("  (Jarvis: Was that a yes?)", flush=True)
+                    tts_client.speak("Sorry, was that a yes?", JV())
+                    continue
             m = jarvis._TO_AGENT.match(text.strip())
             if m:                                                # "ask Claude": skip Jarvis, go straight to the agent
                 text = m.group(1).strip() or STATE.get("last_local", "")
@@ -331,7 +337,7 @@ def main():
                     tts_client.speak(words, JV())
                     continue
                 if llm.usable(cfg) and cfg.get("confirm_agent", "always") == "always":
-                    STATE["pending"] = (fwd, sink, time.time() + 25)
+                    STATE["pending"] = (fwd, sink, time.time() + 25, 0)
                     line = jarvis.ask_line(sess)
                     print(f"  (Jarvis: {line})", flush=True)
                     tts_client.speak(line, JV())
