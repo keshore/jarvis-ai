@@ -8,7 +8,9 @@ mkdir -p "$HOME/.claude/skills/localvoice"
 cp "$HERE/skills/localvoice/SKILL.md" "$HOME/.claude/skills/localvoice/SKILL.md"
 S="$HOME/.claude/settings.json"; [ -f "$S" ] || echo '{}' > "$S"
 cp "$S" "$S.bak"
-jq --slurpfile add "$HERE/hooks.json" '
+LV="$(command -v localvoice)"   # absolute path: hooks must not depend on PATH
+HOOKS="$(sed "s#\"localvoice #\"$LV #" "$HERE/hooks.json")"
+jq --argjson add "[$HOOKS]" '
   .hooks = ((.hooks // {}) as $cur
     | reduce ($add[0].hooks | to_entries[]) as $e ($cur;
         .[$e.key] = ((.[$e.key] // []) + $e.value | unique_by(.hooks[0].command))))' "$S.bak" > "$S"
