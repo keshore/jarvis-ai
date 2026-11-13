@@ -327,40 +327,55 @@ def cmd_doctor(a):
     sys.exit(0 if ok else 1)
 
 
+ADVANCED = ["start", "stop", "sessions", "summarize", "say", "mode", "target", "enable", "disable", "hook"]
+
+
+def _suggest(choices):
+    """Unknown or abbreviated command: say what was probably meant instead of listing everything."""
+    import difflib
+    if len(sys.argv) < 2 or sys.argv[1].startswith("-") or sys.argv[1] in choices:
+        return
+    w = sys.argv[1]
+    near = [c for c in choices if c.startswith(w)] or difflib.get_close_matches(w, list(choices), n=2, cutoff=0.5)
+    shown = " or ".join(f"'{c}'" for c in near[:3])
+    sys.exit(f"localvoice-ai: unknown command '{w}'" + (f" (did you mean {shown}?)" if near else "") + "\nrun 'localvoice-ai -h' for the commands")
+
+
 def main():
-    ap = argparse.ArgumentParser(prog="localvoice-ai", description="Local, private, hands-free voice for any AI agent.")
-    sp = ap.add_subparsers(dest="cmd", required=True)
+    ap = argparse.ArgumentParser(prog="localvoice-ai", description="Local, private, hands-free voice for any AI agent.",
+                                 epilog="more (rarely needed): " + ", ".join(ADVANCED) + "   ('localvoice-ai <command> -h' for details)")
+    sp = ap.add_subparsers(dest="cmd", required=True, metavar="command")
 
     s = sp.add_parser("setup", help="download the speech models")
     s.add_argument("--models", nargs="*", help="model names to download (default: the big model)")
     s.add_argument("--llm", action="store_true", help="also set up the optional local LLM")
     s.set_defaults(f=cmd_setup)
-    s = sp.add_parser("start", help="start listening + voice in the background")
+    s = sp.add_parser("start", help=argparse.SUPPRESS)
     s.add_argument("--model", help="explicit model name (default: the big model)"); s.add_argument("--sink"); s.add_argument("--target")
     s.add_argument("-f", "--foreground", action="store_true"); s.set_defaults(f=cmd_start)
-    sp.add_parser("stop", help="stop everything and keep it off").set_defaults(f=cmd_stop)
-    sp.add_parser("off", help="same as stop").set_defaults(f=cmd_stop)
+    sp.add_parser("stop", help=argparse.SUPPRESS).set_defaults(f=cmd_stop)
+    sp.add_parser("off", help="stop everything and keep it off").set_defaults(f=cmd_stop)
     sp.add_parser("on", help="turn voice back on").set_defaults(f=cmd_on)
-    sp.add_parser("status").set_defaults(f=cmd_status)
-    sp.add_parser("sessions", help="list voice-enabled sessions").set_defaults(f=cmd_sessions)
+    sp.add_parser("status", help="what is running, which sessions").set_defaults(f=cmd_status)
+    sp.add_parser("sessions", help=argparse.SUPPRESS).set_defaults(f=cmd_sessions)
     sp.add_parser("doctor", help="check the installation").set_defaults(f=cmd_doctor)
 
     s = sp.add_parser("speak", help="read stdin aloud (brief or full per mode)")
     s.add_argument("--mode", choices=["brief", "full"]); s.add_argument("--key"); s.add_argument("--session")
     s.add_argument("--claude-hook", action="store_true", help="stdin is a Claude Code hook payload"); s.set_defaults(f=cmd_speak)
-    s = sp.add_parser("summarize", help="summarize stdin with the optional local model")
+    s = sp.add_parser("summarize", help=argparse.SUPPRESS)
     s.add_argument("--speak", action="store_true"); s.set_defaults(f=cmd_summarize)
-    s = sp.add_parser("say", help="re-read the last reply"); s.add_argument("kind", choices=["brief", "full"])
+    s = sp.add_parser("say", help=argparse.SUPPRESS); s.add_argument("kind", choices=["brief", "full"])
     s.add_argument("--key"); s.set_defaults(f=cmd_say)
-    s = sp.add_parser("mode", help="default for automatic speech"); s.add_argument("mode", choices=["brief", "full"]); s.set_defaults(f=cmd_mode)
-    s = sp.add_parser("target", help="send my speech to this terminal/pane"); s.add_argument("value", nargs="?"); s.set_defaults(f=cmd_target)
+    s = sp.add_parser("mode", help=argparse.SUPPRESS); s.add_argument("mode", choices=["brief", "full"]); s.set_defaults(f=cmd_mode)
+    s = sp.add_parser("target", help=argparse.SUPPRESS); s.add_argument("value", nargs="?"); s.set_defaults(f=cmd_target)
 
-    s = sp.add_parser("enable", help="mark a session as voice-enabled")
+    s = sp.add_parser("enable", help=argparse.SUPPRESS)
     s.add_argument("session"); s.add_argument("--sink", choices=["iterm", "tmux", "keystroke", "pty"])
     s.add_argument("--target"); s.add_argument("--app", help="keystroke sink: window/app that has the session")
     s.set_defaults(f=cmd_enable)
-    s = sp.add_parser("disable"); s.add_argument("session"); s.add_argument("--stop-when-idle", action="store_true"); s.set_defaults(f=cmd_disable)
-    s = sp.add_parser("hook", help="entry points for tool adapters")
+    s = sp.add_parser("disable", help=argparse.SUPPRESS); s.add_argument("session"); s.add_argument("--stop-when-idle", action="store_true"); s.set_defaults(f=cmd_disable)
+    s = sp.add_parser("hook", help=argparse.SUPPRESS)
     s.add_argument("event", choices=["claude-start", "claude-stop", "claude-prompt", "claude-end", "json"])
     s.add_argument("payload", nargs="?", help="json event: payload as an argument (else read from stdin)")
     s.add_argument("--field", help="json event: dotted path of the reply text (default: a few common names)")
@@ -369,6 +384,8 @@ def main():
     s.add_argument("--no-speak", action="store_true"); s.add_argument("--idle", type=float, default=1.5)
     s.add_argument("command", nargs=argparse.REMAINDER); s.set_defaults(f=cmd_run)
 
+    sp._choices_actions = [a for a in sp._choices_actions if a.dest not in ADVANCED]   # hide plumbing from -h (still callable)
+    _suggest(sp.choices)
     a = ap.parse_args()
     a.f(a)
 

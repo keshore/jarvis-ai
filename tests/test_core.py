@@ -221,3 +221,18 @@ def test_default_model_is_the_big_one():
     assert cfg["stt_model"] == "big"
     assert stt.model_name(cfg, "faster") == "large-v3-turbo"
     assert stt.model_name(cfg, "mlx") == "mlx-community/whisper-large-v3-turbo"
+
+
+def test_cli_help_hides_plumbing_and_suggests(capsys, monkeypatch):
+    import pytest
+    from localvoice_ai import cli
+    monkeypatch.setattr(sys, "argv", ["localvoice-ai", "-h"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    out = capsys.readouterr().out
+    assert "doctor" in out and "off" in out and "{" not in out
+    assert "enable  " not in out.split("more (rarely needed)")[0]
+    monkeypatch.setattr(sys, "argv", ["localvoice-ai", "sta"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert "start" in str(e.value) and "status" in str(e.value)
