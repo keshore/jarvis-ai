@@ -1,0 +1,25 @@
+{
+  "name": "localvoice",
+  "version": "0.2.0",
+  "description": "Talk to Claude Code hands-free and hear its replies, fully local: your voice and its answers never leave your machine. No slash command needed: voice switches on by itself.",
+  "author": {
+    "name": "keshore",
+    "url": "https://github.com/keshore"
+  },
+  "homepage": "https://github.com/keshore/localvoice",
+  "repository": "https://github.com/keshore/localvoice",
+  "license": "MIT",
+  "keywords": [
+    "voice",
+    "speech",
+    "tts",
+    "stt",
+    "whisper",
+    "kokoro",
+    "hands-free",
+    "accessibility",
+    "local",
+    "privacy"
+  ],
+  "icon": "./.claude-plugin/icon.png"
+}

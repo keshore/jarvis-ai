@@ -1,8 +1,9 @@
-"""Persistent local TTS daemon (Kokoro-82M via ONNX). Keeps the model loaded so speech starts fast.
-A new message interrupts the one being spoken; long text is chunked so playback starts after the first chunk."""
-import os, queue, re, socket, subprocess, tempfile, threading, time
+"""Persistent local TTS daemon (Kokoro-82M on ONNX: runs on any CPU). Keeps the model loaded so speech starts fast.
+A new message interrupts the one being spoken; long text is chunked so playback starts after the first chunk.
+Audio is played in-process with sounddevice, so there is no per-OS player to depend on."""
+import os, queue, re, secrets, socket, threading, time
 
-import soundfile as sf
+import sounddevice as sd
 from kokoro_onnx import Kokoro
 
 from . import config
@@ -12,15 +13,7 @@ MODELS = config.path("models")
 k = Kokoro(os.path.join(MODELS, "kokoro-v1.0.onnx"), os.path.join(MODELS, "voices-v1.0.bin"))
 latest = queue.Queue()
 gen = 0
-play = None
 lock = threading.Lock()
-
-
-def player_cmd(path):
-    for c in (["afplay"], ["paplay"], ["aplay", "-q"], ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet"]):
-        if subprocess.run(["which", c[0]], capture_output=True).returncode == 0:
-            return c + [path]
-    raise RuntimeError("no audio player found (afplay/paplay/aplay/ffplay)")
 
 
 def mark_speaking(until):
@@ -33,9 +26,10 @@ def mark_speaking(until):
 
 def stop_playback():
     mark_speaking(0.0)
-    with lock:
-        if play and play.poll() is None:
-            play.terminate()
+    try:
+        sd.stop()
+    except Exception:
+        pass
 
 
 def chunks(text, limit=280):
@@ -52,7 +46,6 @@ def chunks(text, limit=280):
 
 
 def worker():
-    global play
     while True:
         text, my_gen = latest.get()
         if my_gen != gen:
@@ -67,10 +60,7 @@ def worker():
                     samples, sr = k.create(c, voice=cfg["voice"], speed=float(cfg["speed"]), lang="en-us")
                 except Exception:
                     continue
-                fd, path = tempfile.mkstemp(suffix=".wav")
-                os.close(fd)
-                sf.write(path, samples, sr)
-                ready.put((path, len(samples) / sr))
+                ready.put((samples, sr))
             ready.put(None)
 
         threading.Thread(target=producer, daemon=True).start()
@@ -78,40 +68,44 @@ def worker():
             item = ready.get()
             if item is None:
                 break
-            path, dur = item
+            samples, sr = item
             with lock:
                 if my_gen != gen:
-                    os.unlink(path)
                     continue
-                mark_speaking(time.time() + dur)
-                play = subprocess.Popen(player_cmd(path))
-            play.wait()
-            os.unlink(path)
+                mark_speaking(time.time() + len(samples) / sr)
+                sd.play(samples, sr)
+            sd.wait()
 
 
 def main():
     global gen
     config.ensure()
-    sock = config.sock_path()
-    if os.path.exists(sock):
-        os.unlink(sock)
-    threading.Thread(target=worker, daemon=True).start()
-    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    srv.bind(sock)
-    os.chmod(sock, 0o600)
+    token = secrets.token_hex(16)
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.bind(("127.0.0.1", 0))
     srv.listen(8)
+    config.write_state("tts.pid", str(os.getpid()))
+    config.write_secret("tts.port", f"{srv.getsockname()[1]} {token}")
+    threading.Thread(target=worker, daemon=True).start()
     while True:
         conn, _ = srv.accept()
+        conn.settimeout(3)
         data = b""
-        while True:
-            chunk = conn.recv(4096)
-            if not chunk:
-                break
-            data += chunk
+        try:
+            while True:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+        except OSError:
+            pass
         conn.close()
-        text = data.decode("utf-8", "ignore").strip()
+        head, _, body = data.partition(b"\n")
+        if head.decode("ascii", "ignore") != token:
+            continue                                  # not us: ignore
+        text = body.decode("utf-8", "ignore").strip()
         if not text:
-            continue                       # empty ping: used to test that the daemon is up
+            continue                                  # empty ping: used to test that the daemon is up
         gen += 1
         stop_playback()
         if text != "__STOP__":

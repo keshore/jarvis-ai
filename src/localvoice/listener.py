@@ -1,16 +1,15 @@
 """Hands-free, fully local voice input.
 
-mic -> volume VAD -> local Whisper (mlx-whisper) -> spoken commands handled here | everything else to the sink.
-No audio and no text leaves the machine; the Whisper model is downloaded once and then cached.
+mic -> volume VAD -> local Whisper (mlx-whisper or faster-whisper) -> spoken commands handled here,
+everything else sent to the session you are looking at. No audio and no text leaves the machine; the Whisper
+model is downloaded once and then cached.
 """
-import collections, os, queue, re, subprocess, sys, time
+import collections, os, queue, re, threading, time
 
 import numpy as np
 import sounddevice as sd
 
-import threading
-
-from . import config, llm, sinks, textprep, tts_client
+from . import config, llm, platform_, sessions, sinks, stt, textprep, tts_client
 
 SR = 16000
 BLOCK = 480                      # 30 ms
@@ -24,6 +23,9 @@ JUNK = {"", "you", "thank you", "thanks", "thanks for watching", "bye", "goodbye
         "thank you for watching", "thanks for listening", "i'll see you next time",
         "subtitles by the amara.org community"}
 
+CFG = {}
+
+
 def tts_until():
     """Time at which the voice expects to be silent (written by the TTS daemon)."""
     try:
@@ -34,15 +36,14 @@ def tts_until():
 
 def load_glossary():
     try:
-        words = [w.strip() for w in open(config.path("glossary.txt")) if w.strip() and not w.startswith("#")]
+        with open(config.path("glossary.txt")) as fh:
+            words = [w.strip() for w in fh if w.strip() and not w.startswith("#")]
     except OSError:
         return None
     return ("Terms that may come up: " + ", ".join(words) + ".")[:600] if words else None
 
 
-CFG = {}
-
-
+# ---------- spoken commands (handled locally: the AI never sees them, zero tokens) ----------
 def use_llm():
     s = CFG.get("summarizer", "auto")
     return s == "llm" or (s == "auto" and llm.usable(CFG))
@@ -58,17 +59,23 @@ def _llm_brief(raw):
         tts_client.speak(textprep.speak_text(raw, "brief"))
 
 
-def speak_last(kind, sink):
-    key = sink.target() or "default"
-    raw = textprep.load_last(key)
-    if raw and kind == "brief" and use_llm():
+def speak_raw(raw, kind):
+    if kind == "brief" and use_llm():
         threading.Thread(target=_llm_brief, args=(raw,), daemon=True).start()
-        return
-    tts_client.speak(textprep.speak_text(raw, kind) if raw else "I have nothing to read yet.")
+    else:
+        tts_client.speak(textprep.speak_text(raw, kind))
 
 
-def voice_command(text, sink):
-    """Spoken commands are handled locally and never reach the AI (zero tokens). True if handled."""
+def speak_last(kind, key):
+    raw = textprep.load_last(key) or textprep.load_last(key.split(":")[-1])
+    if raw:
+        speak_raw(raw, kind)
+    else:
+        tts_client.speak("I have nothing to read yet.")
+
+
+def voice_command(text, sink, key):
+    """True if the sentence was a command for us."""
     c = textprep.classify(text)
     if c is None:
         return False
@@ -78,7 +85,14 @@ def voice_command(text, sink):
         tts_client.stop()
         sink.interrupt()
     elif c in ("full", "brief"):
-        speak_last(c, sink)
+        speak_last(c, key)
+    elif c in ("clip_full", "clip_brief"):
+        raw = platform_.clipboard()
+        if raw.strip():
+            textprep.save_last("clipboard", raw)
+            speak_raw(raw, "full" if c == "clip_full" else "brief")
+        else:
+            tts_client.speak("The clipboard is empty.")
     elif c in ("mode_full", "mode_brief"):
         m = c.split("_")[1]
         textprep.set_mode(m)
@@ -86,18 +100,25 @@ def voice_command(text, sink):
     return True
 
 
+def route(cfg, default_sink):
+    """Which session gets this sentence: the one you are looking at, else the default sink."""
+    sess = sessions.current() if cfg.get("focus_follows", True) or len(sessions.all()) == 1 else None
+    if sess:
+        return sinks.for_session(cfg, sess), sess["id"], f"{sess['id'][:8]} via {sess['sink']}"
+    key = default_sink.target() or "default"
+    return default_sink, key, f"default sink {cfg['sink']}"
+
+
 def main():
-    import mlx_whisper
     cfg = config.load()
     CFG.update(cfg)
-    sink = sinks.get(cfg)
-    model = cfg["stt_model"]
+    default_sink = sinks.get(cfg)
     glossary = load_glossary()
     end_silence, min_thr = float(cfg["end_silence"]), float(cfg["min_threshold"])
 
-    print(f"summaries: {'local model ' + cfg['llm_model'] if use_llm() else 'simple (no local model installed)'}", flush=True)
-    print(f"loading {model} (first run downloads it) ...", flush=True)
-    mlx_whisper.transcribe(np.zeros(SR, dtype=np.float32), path_or_hf_repo=model, language=cfg["language"])
+    print(f"summaries: {'local model (' + (llm.backend(cfg) or '?') + ')' if use_llm() else 'simple (no local model; optional)'}", flush=True)
+    print(f"loading speech model ({stt.backend_name(cfg)}: {stt.model_name(cfg)}; first run downloads it) ...", flush=True)
+    tr = stt.Transcriber(cfg)
     tts_client.ensure_server()
 
     q = queue.Queue()
@@ -110,8 +131,8 @@ def main():
         noise = [float(np.sqrt(np.mean(q.get() ** 2))) for _ in range(66)]       # ~2 s
         floor = float(np.percentile(noise, 30))                     # ignore bursts (keys, a passing voice)
         thr = min(max(min_thr, floor * 5.0), float(cfg["max_threshold"]))
-        print(f"listening (sink={cfg['sink']}, threshold {thr:.4f}{', wake word: ' + cfg['wake_word'] if cfg['wake_word'] else ''}). Say 'stop' to silence, 'interrupt' to stop the AI.",
-              flush=True)
+        wake = f", wake word: {cfg['wake_word']}" if cfg["wake_word"] else ""
+        print(f"listening (threshold {thr:.4f}{wake}). Say 'stop' to silence, 'interrupt' to stop the AI.", flush=True)
 
         recent = collections.deque(maxlen=int((PRE_ROLL + 0.3) * SR / BLOCK))
         buf, speaking, quiet, loud, deaf_until = [], False, 0, 0, 0.0
@@ -192,12 +213,8 @@ def main():
                 continue
 
             t0 = time.time()
-            res = mlx_whisper.transcribe(audio, path_or_hf_repo=model, language=cfg["language"],
-                                         condition_on_previous_text=False, initial_prompt=glossary)
-            text = res["text"].strip()
-            segs = res.get("segments") or []
-            if segs and (max(s.get("no_speech_prob", 0) for s in segs) > 0.5
-                         or min(s.get("avg_logprob", 0) for s in segs) < -1.0):
+            text, confident = tr.transcribe(audio, glossary)
+            if not confident:
                 continue                                         # likely a hallucination on noise
             if text.lower().strip(" .!?,") in JUNK or re.fullmatch(r"[\W_]*", text):
                 continue
@@ -214,8 +231,10 @@ def main():
                     continue                                     # not for me: ignore room chatter
                 else:
                     awake_until = time.time() + wake_window
-            print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe]", flush=True)
-            if voice_command(text, sink):
+
+            sink, key, where = route(cfg, default_sink)
+            print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe] -> {where}", flush=True)
+            if voice_command(text, sink, key):
                 continue
             sink.send(text)
             while not q.empty():

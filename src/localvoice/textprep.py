@@ -115,13 +115,15 @@ _FULL = re.compile(r"^read (?:(?:it|that|this) (?:all|in full|out loud|aloud|out
                    r"(?:response|reply|answer|thing|message))(?: out loud| aloud| out| to me)?)$")
 _BRIEF = re.compile(r"^(?:(?:give me |read |say )?(?:the )?(?:summary|short version|gist|tl;?dr|brief version)"
                     r"(?: of (?:that|it|this))?|summari[sz]e (?:it|that|this)(?: for me| to me| out loud| briefly)?)$")
+_CLIP_FULL = re.compile(r"^read (?:the |my )?clipboard(?: out loud| aloud)?$|^read (?:what i (?:just )?copied|the copied text)$")
+_CLIP_BRIEF = re.compile(r"^summari[sz]e (?:the |my )?clipboard$|^summari[sz]e (?:what i (?:just )?copied|the copied text)$")
 _STOP = re.compile(r"^(?:stop|be quiet|quiet|shut up|stop talking|stop reading)$")
 _INTERRUPT = re.compile(r"^(?:interrupt|cancel|cancel that|stop that|stop working|abort|escape)$")
 
 
 def classify(text):
     t = norm(text)
-    for name, rx in (("mode_full", _MODE_FULL), ("mode_brief", _MODE_BRIEF), ("full", _FULL),
+    for name, rx in (("clip_full", _CLIP_FULL), ("clip_brief", _CLIP_BRIEF), ("mode_full", _MODE_FULL), ("mode_brief", _MODE_BRIEF), ("full", _FULL),
                      ("brief", _BRIEF), ("stop", _STOP), ("interrupt", _INTERRUPT)):
         if rx.match(t):
             return name

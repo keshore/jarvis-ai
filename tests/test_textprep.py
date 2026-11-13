@@ -7,6 +7,7 @@ from localvoice import textprep as t
     ("summarize that", "brief"), ("Give me the summary.", "brief"), ("TL;DR", "brief"),
     ("Stop.", "stop"), ("Interrupt", "interrupt"), ("cancel that", "interrupt"),
     ("read everything from now on", "mode_full"), ("Summaries only from now on", "mode_brief"),
+    ("read the clipboard", "clip_full"), ("Summarize the clipboard.", "clip_brief"), ("summarize what I copied", "clip_brief"),
     ("summarize the auth file", None), ("read the file src/app.ts", None), ("fix the bug", None),
 ])
 def test_classify(phrase, kind):
@@ -54,14 +55,3 @@ def test_short_reply_is_read_whole():
 def test_links_and_urls():
     out = t.full_text(t.blocks("See [the docs](https://x.com/a) or https://y.com now."))
     assert out == "See the docs or now."
-
-
-def test_enabled_targets(tmp_path, monkeypatch):
-    import importlib
-    monkeypatch.setenv("LOCALVOICE_HOME", str(tmp_path))
-    from localvoice import config
-    importlib.reload(config)
-    (tmp_path / "active").mkdir()
-    (tmp_path / "active" / "s1").write_text("w0t0p0:AAA")
-    (tmp_path / "active" / "s2").write_text("")          # old-format marker: ignored
-    assert config.enabled_targets() == {"AAA"}

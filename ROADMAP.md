@@ -1,9 +1,12 @@
 # Roadmap
 
-1. Glossary-aware transcription (done), instant silence when you type, Escape-interrupt (done).
-2. (done) Optional local LLM for "summarize that" and as a chat sink; barge-in; wake word.
-3. Silero VAD instead of the volume threshold; real echo cancellation (macOS voice-processing I/O).
-4. Focus-follows-voice: route speech to the focused terminal tab.
-5. `speak --clipboard` and a clipboard watcher for apps with no hooks.
+Done: brief/full by voice, barge-in, wake word, focus-follows-voice, optional local LLM (mlx / Ollama), portable STT/TTS backends,
+session registry, `localvoice run` for any CLI, Claude Code plugin with automatic start.
+
+Next:
+1. Publish to PyPI; Homebrew tap.
+2. Exercise and fix the audio path on Linux, Intel Macs and Windows (CI covers only the portable logic today).
+3. Silero VAD instead of the volume threshold; real echo cancellation (macOS voice-processing I/O, WebRTC AEC elsewhere).
+4. MCP server (`localvoice mcp`) so Cursor, Copilot, Codex and others can call `speak` natively.
+5. Adapters verified against Codex, Gemini CLI and Copilot CLI hooks; reading replies from GUI chat apps (accessibility APIs).
 6. Spoken announcements (needs input, task finished); voice approval of prompts with strict phrases.
-7. Linux backend (faster-whisper, aplay); one background process; menu-bar mic indicator.

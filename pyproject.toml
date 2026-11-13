@@ -4,26 +4,40 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "localvoice"
-version = "0.1.0"
-description = "Local, private, hands-free voice for any AI: Whisper in, Kokoro out, nothing leaves your machine."
+version = "0.2.0"
+description = "Local, private, hands-free voice for any AI agent: speech in and out on your own machine, nothing leaves it."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "MIT" }
+keywords = ["voice", "speech-to-text", "text-to-speech", "whisper", "kokoro", "claude-code", "codex", "ai-agent", "local", "privacy"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 dependencies = [
   "numpy",
   "sounddevice",
-  "soundfile",
   "huggingface_hub",
   "kokoro-onnx",
+  "tomli; python_version < '3.11'",
   "mlx-whisper; sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "faster-whisper; sys_platform != 'darwin' or platform_machine != 'arm64'",
 ]
 
 [project.optional-dependencies]
-llm = ["mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+llm = ["mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'"]   # elsewhere use Ollama (no Python deps)
+keys = ["pynput; sys_platform != 'darwin'"]                                  # keystroke sink on Linux/Windows
 dev = ["pytest"]
 
 [project.scripts]
 localvoice = "localvoice.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/keshore/localvoice"
 
 [tool.setuptools.packages.find]
 where = ["src"]

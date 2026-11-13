@@ -1,15 +1,26 @@
-"""Talk to the always-warm text-to-speech daemon over a unix socket."""
-import os, socket, subprocess, sys, time
+"""Talk to the always-warm text-to-speech daemon over a token-protected loopback socket (works on every OS)."""
+import socket, subprocess, sys, time
 
-from . import config
+from . import config, platform_
+
+
+def _endpoint():
+    try:
+        port, token = config.read_state("tts.port").split()
+        return int(port), token
+    except (ValueError, OSError):
+        return None
 
 
 def _send(data: bytes):
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.settimeout(3)
-    s.connect(config.sock_path())
-    s.sendall(data)
-    s.close()
+    ep = _endpoint()
+    if not ep:
+        raise OSError("voice daemon is not running")
+    s = socket.create_connection(("127.0.0.1", ep[0]), timeout=3)
+    try:
+        s.sendall(ep[1].encode() + b"\n" + data)
+    finally:
+        s.close()
 
 
 def running():
@@ -26,8 +37,8 @@ def ensure_server():
     config.ensure()
     log = open(config.path("tts.log"), "ab")
     subprocess.Popen([sys.executable, "-m", "localvoice.tts_server"], stdout=log, stderr=log,
-                     stdin=subprocess.DEVNULL, start_new_session=True)
-    for _ in range(80):
+                     stdin=subprocess.DEVNULL, **platform_.detach_kwargs())
+    for _ in range(120):
         if running():
             return True
         time.sleep(0.25)
@@ -42,3 +53,10 @@ def speak(text):
 def stop():
     if running():
         _send(b"__STOP__")
+
+
+def stop_server():
+    try:
+        platform_.kill_pid(int(config.read_state("tts.pid")))
+    except (ValueError, OSError):
+        pass

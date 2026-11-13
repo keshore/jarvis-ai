@@ -1,0 +1,15 @@
+#!/bin/sh
+# Finds the `localvoice` command (PATH, pipx/uv, the default venv) and runs it with the given arguments.
+# If it is not installed, the plugin stays quiet except for one hint at session start.
+for c in "$(command -v localvoice 2>/dev/null)" "$HOME/.local/bin/localvoice" "$HOME/.localvoice/venv/bin/localvoice" \
+         /opt/homebrew/bin/localvoice /usr/local/bin/localvoice; do
+  if [ -n "$c" ] && [ -x "$c" ]; then exec "$c" "$@"; fi
+done
+if [ "$2" = "claude-start" ]; then
+  M="${XDG_CACHE_HOME:-$HOME/.cache}/localvoice-hint-shown"
+  if [ ! -e "$M" ]; then
+    mkdir -p "$(dirname "$M")" && : > "$M"
+    printf '%s\n' '{"systemMessage":"localvoice plugin: the localvoice command is not installed yet. Run:  pipx install localvoice && localvoice setup   (then restart Claude Code)"}'
+  fi
+fi
+exit 0
