@@ -91,7 +91,8 @@ With a local model, what you say goes to Jarvis first (`talk_to = "jarvis"`, the
   **yes** sends your words to the agent; **no** drops it. "Ask Claude ..." sends directly.
 - "Summarize the previous response" and "read the one before that" reach back to earlier replies.
 
-Jarvis speaks in its own voice (`jarvis_voice`), so you can tell it from the agent's replies being read out. Set `persona` and `call_me`
+Everything is spoken in one voice (`voice`, a British male voice by default). Set `jarvis_voice` to another Kokoro voice if you want Jarvis's
+own words to sound different from the agent's replies being read out. Set `persona` and `call_me`
 to change its character and what it calls you. `talk_to = "agent"` restores plain dictation; `confirm_agent = "never"` passes things on without asking.
 Without a local model it behaves like `talk_to = "agent"`.
 
@@ -174,10 +175,10 @@ Each sentence waits for the model first (about a second on a 3 to 4B model), so 
 | `discover` | true | find agent sessions and read their replies without a plugin |
 | `approval` | dialog | `dialog` (click to approve) or `voice` (say yes; weaker) |
 | `talk_to`, `confirm_agent` | jarvis, always | talk to Jarvis first (or `agent` for plain dictation); ask before passing things to the agent |
-| `persona`, `call_me`, `jarvis_voice` | dry-witted British assistant, none, bm_george | Jarvis's character, what it calls you, its Kokoro voice |
+| `persona`, `call_me`, `jarvis_voice` | dry-witted British assistant, none, none | Jarvis's character, what it calls you, its Kokoro voice |
 | `frontend` | commands | `off`: exact phrases only. `commands`: loose wording, plus the local LLM for short unusual requests. `assistant`: the local LLM sees every sentence, of any length: it can run a command or forward your sentence lightly cleaned of dictation slips |
 | `mode` | brief | `brief` or `full` |
-| `voice`, `speed` | af_heart, 1.05 | Kokoro voice and speed |
+| `voice`, `speed` | bm_george, 1.05 | Kokoro voice and speed |
 
 ## Privacy
 

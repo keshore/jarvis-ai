@@ -31,7 +31,7 @@ DEFAULTS = {
     "stt_model": "big",               # Whisper large-v3-turbo. (Weak CPU? set an explicit smaller name, e.g. "small.en")
     "language": "en",
     # --- text to speech (Kokoro, runs on any CPU) ---
-    "voice": "af_heart",
+    "voice": "bm_george",
     "speed": 1.05,
     # --- where your speech goes when no session is registered ---
     "sink": "auto",                   # auto | iterm | tmux | keystroke | pty | exec | llm | stdout
@@ -70,7 +70,7 @@ DEFAULTS = {
     "confirm_agent": "always",        # always: Jarvis asks "shall I ask Claude?" and waits for your yes | never: it passes things on directly
     "persona": "",                    # Jarvis's character in one line; empty = calm, dry-witted British assistant
     "call_me": "",                    # what Jarvis calls you now and then, e.g. "sir" or your name
-    "jarvis_voice": "bm_george",      # the voice Jarvis uses for its own words; replies read from the agent keep `voice`
+    "jarvis_voice": "",               # a different Kokoro voice for Jarvis's own words; empty = one voice for everything (`voice`)
     "open_cmd": "claude",             # "Jarvis, open a session in <project>": the agent to start there
     "project_dirs": [],               # folders that hold your projects; empty = common ones (~/src, ~/code ...) and those of open sessions
     "discover": True,                 # find agent sessions and read their replies without a plugin (Claude Code today)
