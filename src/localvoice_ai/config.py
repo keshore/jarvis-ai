@@ -47,6 +47,7 @@ DEFAULTS = {
     "ollama_url": "http://127.0.0.1:11434",
     "llm_idle_seconds": 300,          # unload the model from memory after this much idle time
     "llm_max_tokens": 250,
+    "approval": "dialog",             # how you approve actions taken for you: dialog (a window you click, default) | voice (say yes; weaker)
     "frontend": "commands",           # off | commands (understand loose spoken commands) | assistant (local LLM sees everything; see docs)
     "frontend_timeout": 6,            # seconds the local model gets before your sentence is simply forwarded
     "llm_system": "You are a concise voice assistant. Answer in at most three short, natural spoken sentences. "
