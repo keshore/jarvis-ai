@@ -22,17 +22,12 @@ JUNK = {"", "you", "thank you", "thanks", "thanks for watching", "bye", "goodbye
         "thank you for watching", "thanks for listening", "i'll see you next time",
         "subtitles by the amara.org community"}
 
-_tts = [0.0, False]
-
-
-def tts_playing():
-    """True while any local player is speaking (polled at most 4x/sec)."""
-    now = time.time()
-    if now - _tts[0] > 0.25:
-        _tts[0] = now
-        _tts[1] = any(subprocess.run(["pgrep", "-x", p], capture_output=True).returncode == 0
-                      for p in ("afplay", "paplay", "aplay", "ffplay"))
-    return _tts[1]
+def tts_until():
+    """Time at which the voice expects to be silent (written by the TTS daemon)."""
+    try:
+        return float(config.read_state("speaking_until", "0") or 0)
+    except ValueError:
+        return 0.0
 
 
 def load_glossary():
@@ -88,29 +83,66 @@ def main():
         print(f"listening (sink={cfg['sink']}, threshold {thr:.4f}). Say 'stop' to silence, 'interrupt' to stop the AI.",
               flush=True)
 
-        pre = collections.deque(maxlen=int(PRE_ROLL * SR / BLOCK))
+        recent = collections.deque(maxlen=int((PRE_ROLL + 0.3) * SR / BLOCK))
         buf, speaking, quiet, loud, deaf_until = [], False, 0, 0, 0.0
         paused = config.path(".paused")
+        barge_in, ratio = bool(cfg["barge_in"]), float(cfg["barge_ratio"])
+        smooth, echo_win, hot = 0.0, collections.deque(), 0
+        last_on, learn_until, was_on = 0.0, 0.0, False
 
         while True:
             blk = q.get()
             now = time.time()
-            if tts_playing() or os.path.exists(paused):
+            recent.append(blk)
+            rms = float(np.sqrt(np.mean(blk ** 2)))
+            smooth = 0.7 * smooth + 0.3 * rms                    # ~90 ms envelope
+            on = now < tts_until() + 0.25                        # the voice is (about to be) talking
+
+            if on:
+                if now - last_on > 1.0:                          # a new spoken reply starts: relearn the echo
+                    echo_win.clear(); hot = 0; learn_until = now + 0.4
+                last_on = now
+            elif was_on and not speaking:
+                deaf_until = now + TTS_TAIL                      # let the room tail die out
+            was_on = on
+
+            if os.path.exists(paused):
                 deaf_until = now + TTS_TAIL
+
+            if on and not speaking:
+                if not barge_in:
+                    deaf_until = now + TTS_TAIL
+                else:
+                    while echo_win and now - echo_win[0][0] > 1.5:
+                        echo_win.popleft()
+                    echo = max((v for _, v in echo_win), default=0.0)
+                    limit = max(thr, echo * ratio)
+                    if now < learn_until:
+                        echo_win.append((now, smooth)); hot = 0
+                    else:
+                        hot = hot + 1 if smooth > limit else 0
+                        if smooth <= limit:
+                            echo_win.append((now, smooth))
+                    if hot >= 8:                                 # ~0.25 s clearly above the echo: you are talking
+                        tts_client.stop()
+                        print(f"  (barge-in: level {smooth:.3f} vs echo {echo:.3f})", flush=True)
+                        speaking, quiet, hot, deaf_until = True, 0, 0, 0.0
+                        buf = list(recent)[-8:]
+                    else:
+                        continue
+
             if now < deaf_until:
                 buf, speaking, quiet, loud = [], False, 0, 0
-                pre.clear()
+                recent.clear()
                 while q.qsize() > 50:
                     q.get()
                 continue
 
-            rms = float(np.sqrt(np.mean(blk ** 2)))
             if not speaking:
-                pre.append(blk)
                 loud = loud + 1 if rms > thr else 0
                 if loud >= 3:
                     speaking, quiet = True, 0
-                    buf = list(pre)
+                    buf = list(recent)
                 continue
 
             buf.append(blk)
@@ -122,7 +154,7 @@ def main():
             speech_len = dur - quiet * BLOCK / SR
             audio = np.concatenate(buf)
             buf, speaking, quiet, loud = [], False, 0, 0
-            pre.clear()
+            recent.clear()
             if speech_len < MIN_SPEECH:
                 continue
 
@@ -133,7 +165,7 @@ def main():
             segs = res.get("segments") or []
             if segs and (max(s.get("no_speech_prob", 0) for s in segs) > 0.5
                          or min(s.get("avg_logprob", 0) for s in segs) < -1.0):
-                continue                                   # likely a hallucination on noise
+                continue                                         # likely a hallucination on noise
             if text.lower().strip(" .!?,") in JUNK or re.fullmatch(r"[\W_]*", text):
                 continue
             print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe]", flush=True)

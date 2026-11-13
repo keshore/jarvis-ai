@@ -1,6 +1,6 @@
 """Persistent local TTS daemon (Kokoro-82M via ONNX). Keeps the model loaded so speech starts fast.
 A new message interrupts the one being spoken; long text is chunked so playback starts after the first chunk."""
-import os, queue, re, socket, subprocess, tempfile, threading
+import os, queue, re, socket, subprocess, tempfile, threading, time
 
 import soundfile as sf
 from kokoro_onnx import Kokoro
@@ -23,7 +23,16 @@ def player_cmd(path):
     raise RuntimeError("no audio player found (afplay/paplay/aplay/ffplay)")
 
 
+def mark_speaking(until):
+    """Tell the listener when we expect to stop talking (0 = silent). Lets it separate echo from you."""
+    try:
+        config.write_state("speaking_until", repr(until))
+    except OSError:
+        pass
+
+
 def stop_playback():
+    mark_speaking(0.0)
     with lock:
         if play and play.poll() is None:
             play.terminate()
@@ -61,18 +70,20 @@ def worker():
                 fd, path = tempfile.mkstemp(suffix=".wav")
                 os.close(fd)
                 sf.write(path, samples, sr)
-                ready.put(path)
+                ready.put((path, len(samples) / sr))
             ready.put(None)
 
         threading.Thread(target=producer, daemon=True).start()
         while True:
-            path = ready.get()
-            if path is None:
+            item = ready.get()
+            if item is None:
                 break
+            path, dur = item
             with lock:
                 if my_gen != gen:
                     os.unlink(path)
                     continue
+                mark_speaking(time.time() + dur)
                 play = subprocess.Popen(player_cmd(path))
             play.wait()
             os.unlink(path)

@@ -18,6 +18,8 @@ DEFAULTS = {
     "mode": "brief",                  # default for automatic speech: brief | full
     "end_silence": 0.65,              # seconds of quiet that ends an utterance
     "min_threshold": 0.02,            # floor for the volume threshold
+    "barge_in": True,                 # talk over the voice to interrupt it
+    "barge_ratio": 2.2,               # how much louder than the echo you must be (raise if it self-interrupts)
     "app": "",                        # sink=keystroke: app to bring to front before typing
 }
 
@@ -40,7 +42,8 @@ def load():
     for k in list(cfg):
         v = os.environ.get("LOCALVOICE_" + k.upper())
         if v is not None:
-            cfg[k] = type(DEFAULTS[k])(v)
+            d = DEFAULTS[k]
+            cfg[k] = (v.lower() in ("1", "true", "yes", "on")) if isinstance(d, bool) else type(d)(v)
     return cfg
 
 
