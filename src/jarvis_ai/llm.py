@@ -21,6 +21,27 @@ SUMMARY_SYSTEM = (
 )
 
 
+# ---------- which model ----------
+MLX_BY_RAM = ((22, "mlx-community/Qwen3-8B-4bit"), (12, "mlx-community/Qwen3-4B-Instruct-2507-4bit"), (0, "mlx-community/Qwen3-1.7B-4bit"))
+
+
+def ram_gb():
+    try:
+        import os
+        return os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / 2 ** 30
+    except (ValueError, OSError, AttributeError):
+        return 0.0
+
+
+def model_name(cfg):
+    """`llm_model = "auto"` picks the largest model that leaves room for Whisper and the voice on this machine."""
+    m = cfg.get("llm_model", "auto")
+    if m and m != "auto":
+        return m
+    gb = ram_gb()
+    return next(name for floor, name in MLX_BY_RAM if gb >= floor)
+
+
 # ---------- backend selection ----------
 def _mlx_available():
     if not platform_.APPLE_SILICON:
@@ -44,7 +65,7 @@ def _mlx_cached(cfg):
     import glob, os
     try:
         from huggingface_hub import snapshot_download
-        d = snapshot_download(cfg["llm_model"], local_files_only=True)
+        d = snapshot_download(model_name(cfg), local_files_only=True)
     except Exception:
         return False
     blobs = os.path.join(os.path.dirname(os.path.dirname(d)), "blobs")
@@ -101,9 +122,10 @@ def _touch(cfg):
 def _gen_mlx(messages, cfg, max_tokens):
     from mlx_lm import load, generate as gen
     with _lock:
-        if _state["model"] is None or _state["name"] != cfg["llm_model"]:
-            _state["model"], _state["tok"] = load(cfg["llm_model"])
-            _state["name"] = cfg["llm_model"]
+        name = model_name(cfg)
+        if _state["model"] is None or _state["name"] != name:
+            _state["model"], _state["tok"] = load(name)
+            _state["name"] = name
         model, tok = _state["model"], _state["tok"]
         try:
             prompt = tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)

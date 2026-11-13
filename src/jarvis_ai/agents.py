@@ -58,6 +58,36 @@ def _tty_of(pid):
     return "" if not t or t.startswith("?") else ("/dev/" + t if not t.startswith("/dev/") else t)
 
 
+def app_of(pid):
+    """macOS: the visible app that hosts this process (Terminal, VS Code, Warp, Ghostty, Claude ...), as the system names it."""
+    if not platform_.IS_MAC:
+        return ""
+    p = int(pid)
+    for _ in range(12):
+        try:
+            out = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(p)], capture_output=True, text=True, timeout=3).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        if not out:
+            return ""
+        ppid, _, comm = out.partition(" ")
+        if ".app/Contents/MacOS/" in comm:
+            try:
+                asn = subprocess.run(["lsappinfo", "find", f"pid={p}"], capture_output=True, text=True, timeout=3).stdout
+            except (OSError, subprocess.SubprocessError):
+                asn = ""
+            m = re.search(r'"([^"]+)"', asn)
+            if m:
+                return m.group(1)                         # a real, visible app
+        try:
+            p = int(ppid)
+        except ValueError:
+            return ""
+        if p <= 1:
+            return ""
+    return ""
+
+
 def reach(tty, iterm=None, tmux=None):
     """(sink, target) for a terminal device. tmux wins over iTerm: a pane inside a tab must get the keys."""
     if not tty:
@@ -104,7 +134,11 @@ def claude_sessions(iterm=None, tmux=None):
             continue
         cwd = str(d.get("cwd") or "")
         sink, target = reach(_tty_of(pid), iterm, tmux)
-        out.append({"id": sid, "agent": "claude", "pid": pid, "cwd": cwd, "name": str(d.get("name") or os.path.basename(cwd) or sid[:8]),
+        app = ""
+        if not sink:
+            app = app_of(pid)                             # any other terminal or app: type into its window when it is in front
+            sink = "keystroke" if app else ""
+        out.append({"app": app, "id": sid, "agent": "claude", "pid": pid, "cwd": cwd, "name": str(d.get("name") or os.path.basename(cwd) or sid[:8]),
                     "busy": d.get("status") == "busy", "sink": sink, "target": target, "term": target if sink == "iterm" else "",
                     "transcript": claude_transcript(sid, cwd)})
     return out

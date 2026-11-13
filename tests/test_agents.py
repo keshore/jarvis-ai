@@ -45,6 +45,7 @@ def test_claude_sessions_come_from_claudes_own_registry(tmp_path, monkeypatch):
     (tmp_path / "sessions" / "2.json").write_text(json.dumps({"pid": me, "sessionId": "bg", "cwd": "/x", "kind": "background"}))
     (tmp_path / "sessions" / "3.json").write_text("{broken")
     monkeypatch.setattr(agents, "_tty_of", lambda pid: "/dev/ttys009")
+    monkeypatch.setattr(agents, "app_of", lambda pid: "")
     ss = agents.claude_sessions(iterm={"/dev/ttys009": "TAB-1"}, tmux={})
     assert [s["id"] for s in ss] == ["abc"]
     s = ss[0]
@@ -61,3 +62,16 @@ def test_find_by_spoken_name_never_guesses():
     assert agents.find("college portal", ss)["id"] == "1"
     assert agents.find("portal", ss) is None                 # two sessions match equally: ask, do not guess
     assert agents.find("the session", ss) is None and agents.find("banana", ss) is None
+
+
+def test_a_session_in_any_other_app_is_reached_through_that_app(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "sessions").mkdir()
+    me = os.getpid()
+    (tmp_path / "sessions" / f"{me}.json").write_text(json.dumps({"pid": me, "sessionId": "abc", "cwd": "/w/x", "kind": "interactive"}))
+    monkeypatch.setattr(agents, "_tty_of", lambda pid: "/dev/ttys009")
+    monkeypatch.setattr(agents, "app_of", lambda pid: "Code")
+    s = agents.claude_sessions(iterm={}, tmux={})[0]
+    assert (s["sink"], s["app"]) == ("keystroke", "Code")
+    monkeypatch.setattr(agents, "app_of", lambda pid: "")
+    assert agents.claude_sessions(iterm={}, tmux={})[0]["sink"] == ""

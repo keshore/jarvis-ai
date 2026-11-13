@@ -151,12 +151,19 @@ class Llm(Sink):
         tts_client.speak(textprep.speak_text(reply))
 
 
+class Null(Sink):
+    """A session Jarvis can read (its replies) but cannot type into: it is not in a terminal we know how to reach."""
+
+    def send(self, text):
+        print("  (cannot type into this session: it is not in iTerm or tmux. Use `jarvis-ai run -- <cmd>` or the keystroke sink.)", flush=True)
+
+
 class Stdout(Sink):
     def send(self, text):
         print(text, flush=True)
 
 
-SINKS = {"iterm": Iterm, "tmux": Tmux, "keystroke": Keystroke, "pty": Pty, "exec": Exec, "llm": Llm, "stdout": Stdout}
+SINKS = {"iterm": Iterm, "tmux": Tmux, "keystroke": Keystroke, "pty": Pty, "exec": Exec, "llm": Llm, "stdout": Stdout, "none": Null}
 
 
 def auto_name():

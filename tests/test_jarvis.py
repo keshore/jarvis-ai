@@ -101,3 +101,19 @@ def test_watcher_reads_replies_without_hooks_and_leaves_plugin_sessions_alone(ho
         fh.write(json.dumps({"type": "assistant", "message": {"stop_reason": "end_turn", "content": [{"type": "text", "text": "Second."}]}}) + "\n")
     w.step()
     assert spoken == ["All tests pass."] and textprep.load_last("s1") == "Second."
+
+
+def test_ask_will_not_type_into_an_app_that_holds_two_sessions(home):
+    said = []
+    reg(home, sink="keystroke", target="", app="Code")
+    reg(home, id="s2", name="jarvis-ai-3", cwd="/w/jarvis-ai", sink="keystroke", target="", app="Code")
+    assert jarvis.handle("ask jarvis to run the tests", CFG, speak=said.append, approve=lambda p, cfg: pytest.fail("must not ask"), background=False)
+    assert "can't pick the tab" in said[-1]
+
+
+def test_model_is_chosen_by_memory(monkeypatch):
+    from jarvis_ai import llm
+    for gb, want in ((8, "1.7B"), (16, "4B"), (24, "8B"), (64, "8B")):
+        monkeypatch.setattr(llm, "ram_gb", lambda gb=gb: gb)
+        assert want in llm.model_name({"llm_model": "auto"})
+    assert llm.model_name({"llm_model": "my/model"}) == "my/model"

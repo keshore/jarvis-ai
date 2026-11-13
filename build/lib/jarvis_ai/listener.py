@@ -9,7 +9,7 @@ import collections, os, queue, re, threading, time
 import numpy as np
 import sounddevice as sd
 
-from . import aec, config, intent, llm, platform_, sessions, sinks, stt, textprep, tts_client, vad
+from . import aec, config, intent, jarvis, llm, platform_, sessions, sinks, stt, textprep, tts_client, vad
 
 SR = 16000
 BLOCK = vad.BLOCK               # 512 samples = 32 ms (what Silero expects)
@@ -35,11 +35,15 @@ def tts_until():
 
 
 def load_glossary():
+    words = []
     try:
         with open(config.path("glossary.txt")) as fh:
             words = [w.strip() for w in fh if w.strip() and not w.startswith("#")]
     except OSError:
-        return None
+        pass
+    name = (CFG.get("name") or "").strip()
+    if name and name.lower() not in [w.lower() for w in words]:
+        words.insert(0, name.capitalize())               # so Whisper spells the assistant's name the way we match it
     return ("Terms that may come up: " + ", ".join(words) + ".")[:600] if words else None
 
 
@@ -113,8 +117,10 @@ def voice_command(text, sink, key):
 def route(cfg, default_sink):
     """Which session gets this sentence: the one you are looking at, else the default sink."""
     sess = sessions.current() if cfg.get("focus_follows", True) or len(sessions.all()) == 1 else None
-    if sess:
-        return sinks.for_session(cfg, sess), sess["id"], f"{sess['id'][:8]} via {sess['sink']}"
+    if sess and sess.get("sink") not in ("", "none", None):
+        return sinks.for_session(cfg, sess), sess["id"], f"{sess.get('name') or sess['id'][:8]} via {sess['sink']}"
+    if sess:                                               # known session in a terminal we cannot address: type into the front window
+        return default_sink, sess["id"], f"{sess.get('name') or sess['id'][:8]} via default sink {cfg['sink']}"
     key = default_sink.target() or "default"
     return default_sink, key, f"default sink {cfg['sink']}"
 
@@ -130,6 +136,9 @@ def main():
     print(f"loading speech model ({stt.backend_name(cfg)}: {stt.model_name(cfg)}; first run downloads it) ...", flush=True)
     tr = stt.Transcriber(cfg)
     tts_client.ensure_server()
+    if cfg.get("discover", True):
+        jarvis.Watcher(cfg, lambda raw: speak_raw(raw, textprep.get_mode())).start()
+        print("sessions: found automatically (no plugin needed); replies are read from the agents' transcripts", flush=True)
 
     q = queue.Queue()
     def on_audio(indata, frames, tinfo, status):
@@ -243,6 +252,15 @@ def main():
                 else:
                     awake_until = time.time() + wake_window
 
+            rest = jarvis.addressed(text, cfg)
+            if rest is not None:
+                print(f"> {text}   [to {cfg['name']}]", flush=True)
+                if not rest:
+                    tts_client.speak("Yes?")
+                    continue
+                if jarvis.handle(rest, cfg, say_reply=lambda raw: speak_raw(raw, "brief")):
+                    continue
+                text = rest                                      # not one of Jarvis's own commands: treat it like any sentence
             sink, key, where = route(cfg, default_sink)
             print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe] -> {where}", flush=True)
             fwd = voice_command(text, sink, key)

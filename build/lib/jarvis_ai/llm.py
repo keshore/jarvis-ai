@@ -3,6 +3,8 @@ summary and the `llm` sink is unavailable. Backends:
 
   mlx     mlx-lm, Apple Silicon (4-bit models from the mlx-community)
   ollama  any machine that runs Ollama (https://ollama.com): CPU or GPU, Linux, Windows, macOS
+  openai  any server that speaks the OpenAI chat API: llama.cpp, LM Studio, vLLM, Jan, LocalAI ... (set `llm_url`).
+          Pointing it at a server on another machine sends your sentences there: keep it on 127.0.0.1 to stay local.
 """
 import gc, json, re, threading, time, urllib.request
 
@@ -58,6 +60,8 @@ def backend(cfg):
         tags = _ollama_models(cfg)
         if tags is not None and any(t == cfg["ollama_model"] or t.split(":")[0] == cfg["ollama_model"] for t in tags):
             return "ollama"
+    if want in ("auto", "openai") and cfg.get("llm_url") and _openai_up(cfg):
+        return "openai"
     return None
 
 
@@ -70,7 +74,7 @@ def usable(cfg):
 
 def loaded():
     """True when no slow model load is needed (used to say 'one moment' only when it will take a while)."""
-    return _state["model"] is not None or _state["name"] == "ollama"
+    return _state["model"] is not None or _state["name"] in ("ollama", "openai")
 
 
 # ---------- mlx ----------
@@ -122,13 +126,42 @@ def _gen_ollama(messages, cfg, max_tokens):
         return json.load(r)["message"]["content"]
 
 
+# ---------- any OpenAI-compatible server ----------
+def _openai_req(cfg, path, body=None, timeout=120):
+    import os
+    headers = {"Content-Type": "application/json"}
+    key = os.environ.get("JARVIS_AI_LLM_KEY", "")            # from the environment only: never stored in the config file
+    if key:
+        headers["Authorization"] = "Bearer " + key
+    req = urllib.request.Request(cfg["llm_url"].rstrip("/") + path, data=json.dumps(body).encode() if body is not None else None, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+def _openai_up(cfg):
+    try:
+        _openai_req(cfg, "/models", timeout=1.5)
+        return True
+    except Exception:
+        return False
+
+
+def _gen_openai(messages, cfg, max_tokens):
+    body = {"messages": messages, "max_tokens": max_tokens, "stream": False}
+    if cfg.get("llm_api_model"):
+        body["model"] = cfg["llm_api_model"]
+    out = _openai_req(cfg, "/chat/completions", body)
+    _state["name"] = "openai"
+    return out["choices"][0]["message"]["content"] or ""
+
+
 # ---------- public ----------
 def generate(messages, cfg, max_tokens=None):
     b = backend(cfg)
     if b is None:
-        raise RuntimeError("no local LLM available (install mlx-lm on Apple Silicon, or run Ollama)")
+        raise RuntimeError("no local LLM available (install mlx-lm on Apple Silicon, run Ollama, or set llm_url to an OpenAI-compatible server)")
     n = max_tokens or int(cfg["llm_max_tokens"])
-    out = _gen_mlx(messages, cfg, n) if b == "mlx" else _gen_ollama(messages, cfg, n)
+    out = {"mlx": _gen_mlx, "ollama": _gen_ollama, "openai": _gen_openai}[b](messages, cfg, n)
     return re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
 
 

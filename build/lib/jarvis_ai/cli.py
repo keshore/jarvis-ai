@@ -56,8 +56,8 @@ def _auto_enable(sid):
     if _off() or not config.load().get("autostart", True) or os.environ.get("JARVIS_AI_DISABLE") or not _interactive():
         return None
     s = sessions.get(sid)
-    if not s:
-        s = sessions.detect(sid)
+    if not s or not s.get("hooks"):
+        s = {**(s or {}), **sessions.detect(sid), "hooks": True}
         sessions.register(s)
     config.write_state("last_session", sid)
     _spawn_listener()
@@ -144,14 +144,17 @@ def cmd_status(a):
     print("voice server:", "running" if tts_client.running() else "stopped")
     print(f"speech-to-text: {stt.backend_name(cfg)} / {stt.model_name(cfg)}   mode: {textprep.get_mode()}")
     print("local LLM (optional):", llm.backend(cfg) or "not available (summaries use the simple rules)")
+    if cfg.get("discover", True):
+        from . import jarvis
+        jarvis.sync()
     ss = sessions.all()
     print(f"sessions: {len(ss)}")
     for s in ss:
         where = s.get("app") or s.get("target", "")
-        print(f"  {s['id'][:8]}  {s['sink']:9} {where}")
+        state = ("working" if s.get("busy") else "idle") if "busy" in s else ""
+        print(f"  {s['id'][:8]}  {(s.get('name') or '')[:28]:28} {s['sink']:9} {state:8} {where}")
     if not ss:
         print("  none yet: a Claude Code session joins when it starts or when you send a prompt in it.")
-    print("note: a Claude Code session started BEFORE the plugin was installed has no hooks: restart it to get voice replies.")
 
 
 def cmd_sessions(a):
@@ -261,6 +264,9 @@ def cmd_hook(a):
     s = sessions.get(sid) or (_auto_enable(sid) if a.event == "claude-prompt" else None)
     if not s:
         return
+    if not s.get("hooks"):                                 # this session has the plugin: the transcript watcher must not read it too
+        s["hooks"] = True
+        sessions.register(s)
     if a.event == "claude-prompt":
         sessions.refresh(s)                                # it is in front right now: re-learn where it lives
         config.write_state("last_session", sid)

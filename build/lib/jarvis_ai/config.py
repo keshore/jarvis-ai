@@ -55,12 +55,16 @@ DEFAULTS = {
     "app": "",                        # sink=keystroke: app to bring to front before typing
     # --- optional local LLM (summaries, chat sink). Nothing breaks without it. ---
     "summarizer": "auto",             # auto (use an LLM if one is available) | llm | extractive
-    "llm_backend": "auto",            # auto | mlx (Apple Silicon) | ollama (any machine)
+    "llm_backend": "auto",            # auto | mlx (Apple Silicon) | ollama (any machine) | openai (any OpenAI-compatible server)
+    "llm_url": "",                    # backend openai: e.g. http://127.0.0.1:8080/v1 (llama.cpp), http://127.0.0.1:1234/v1 (LM Studio)
+    "llm_api_model": "",              # backend openai: model name, if the server needs one
     "llm_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",     # backend mlx (or Qwen3-1.7B-4bit, 1 GB)
     "ollama_model": "llama3.2:3b",    # backend ollama
     "ollama_url": "http://127.0.0.1:11434",
     "llm_idle_seconds": 300,          # unload the model from memory after this much idle time
     "llm_max_tokens": 250,
+    "name": "jarvis",                 # say it first to talk to the assistant itself: "Jarvis, switch to the portal session". "" turns it off
+    "discover": True,                 # find agent sessions and read their replies without a plugin (Claude Code today)
     "approval": "dialog",             # how you approve actions taken for you: dialog (a window you click, default) | voice (say yes; weaker)
     "frontend": "commands",           # off | commands (understand loose spoken commands) | assistant (the local LLM sees every sentence; see README)
     "frontend_timeout": 6,            # seconds the local model gets before your sentence is simply forwarded

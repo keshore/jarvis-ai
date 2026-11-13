@@ -37,8 +37,8 @@ No pipx? From a clone, `./install.sh` does the same with a private virtual envir
 git clone https://github.com/keshore/jarvis-ai && cd jarvis-ai && ./install.sh
 ```
 
-**2. Start it:** `jarvis-ai on`. It finds running Claude Code sessions by itself (in iTerm2 or tmux it can also type into them and
-switch between them; in other terminals it types into the window in front). `jarvis-ai off` stops it.
+**2. Start it:** `jarvis-ai on`. It finds running Claude Code sessions by itself, in any terminal or app. In iTerm2 and tmux it reaches the exact tab or pane; in any
+other app on macOS (Terminal, VS Code, Warp, Ghostty ...) it works through that app's window; elsewhere it types into the window in front. `jarvis-ai off` stops it.
 
 **Optional: the Claude Code plugin** starts and stops voice together with your sessions, so you never run `on` / `off`
 (Claude Code 2.1.275 or later):
@@ -120,7 +120,8 @@ Where your speech goes is called a *sink*: `iterm`, `tmux`, `keystroke` (types i
 Nothing needs it. When one is available, "summarize that" uses it instead of the rule-based summary.
 
 - **Apple Silicon:** `pipx inject jarvis-ai mlx-lm` (or `pip install 'jarvis-ai[llm]'`), then `jarvis-ai setup --llm`.
-  Qwen3-4B, 2.3 GB, loaded on demand and unloaded after five idle minutes.
+  Qwen3-4B, 2.3 GB, loaded on demand and unloaded after five idle minutes. `llm_model = "auto"` picks a size by memory
+  (1.7B under 12 GB, 4B under 22 GB, 8B above); any MLX model name works.
 - **Any machine:** install [Ollama](https://ollama.com) and run `ollama pull llama3.2:3b`. It is detected automatically.
 - **Any other local server** that speaks the OpenAI chat API (llama.cpp, LM Studio, vLLM, Jan): set `llm_url`, e.g.
   `llm_url = "http://127.0.0.1:8080/v1"` (and `llm_api_model` if the server wants a model name). A key, if needed, is read from the
@@ -179,7 +180,7 @@ it and `jarvis-ai off` ends it. The voice daemon listens on `127.0.0.1` only and
 - The speech detector separates speech from noise, not one speaker from another: use a `wake_word` if people talk near you.
 - `jarvis-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen terminal UIs redraw constantly, so prefer a tool's own hook.
 - Finding sessions without a plugin reads Claude Code's own session list and transcripts. These are internal files and may change with a Claude Code update; the plugin is the fallback. Other agents use `run`, a hook or a pipe.
-- Switching to a session and typing into a session that is not in front need iTerm2 or tmux.
+- Picking one tab among several needs iTerm2 or tmux. In other apps Jarvis can bring the app to the front, and types into a session that is not in front only when it is the only session in that app.
 - Reading replies aloud needs a transcript (Claude Code), a hook, a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
   read-back there yet.
 
