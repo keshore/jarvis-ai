@@ -68,6 +68,8 @@ Just talk. Say **"stop"** to silence the voice and **"interrupt"** to stop the A
 | "stop" | silences the voice |
 | "interrupt" / "cancel that" | silences it and presses Escape in the AI |
 
+You do not need the exact words: "read me the whole thing", "say it all", "give me the short version" also work, with no model.
+With the optional local LLM, other short requests ("I'd like to hear everything it said") are understood too.
 Anything that names something else, like "summarize the auth file", goes to the AI as normal.
 
 ```bash
@@ -103,6 +105,13 @@ Nothing needs it. When one is available, "summarize that" uses it instead of the
   Qwen3-4B, 2.3 GB, loaded on demand and unloaded after five idle minutes.
 - **Any machine:** install [Ollama](https://ollama.com) and run `ollama pull llama3.2:3b`. It is detected automatically.
 
+### The local model between you and the AI (`frontend`)
+
+The local model can only pick from a fixed list of actions. If it is unsure, slow (`frontend_timeout`, 6 s), unavailable or answers in
+a wrong format, your sentence goes to the AI exactly as you said it. At `assistant` level a cleaned-up sentence is used only if it stays
+close to what you said, and the listener log shows `(cleaned up: ...)`, `(command: ...)` or `(answered locally: ...)` for every decision.
+Each sentence waits for the model first (about a second on a 3 to 4B model), so `commands` limits this to short sentences.
+
 ## Configuration
 
 `~/.localvoice-ai/config.toml` (see the [example](https://github.com/keshore/localvoice-ai/blob/main/examples/config.toml)) and
@@ -116,6 +125,7 @@ Nothing needs it. When one is available, "summarize that" uses it instead of the
 | `vad` | silero | `silero` (neural speech detector, recommended) or `volume` (plain loudness gate) |
 | `echo_cancel`, `aec_delay_ms` | auto, 150 | echo cancellation when installed; the speaker-to-microphone delay of your machine (150 fits a MacBook Pro) |
 | `barge_ratio` | 2.2 | only without echo cancellation: how much louder than the echo you must be to interrupt |
+| `frontend` | commands | `off`: exact phrases only. `commands`: loose wording, plus the local LLM for short unusual requests. `assistant`: the local LLM sees every sentence: it can run a command, answer a simple question itself (the AI never sees it) or forward your sentence lightly cleaned of dictation slips |
 | `mode` | brief | `brief` or `full` |
 | `voice`, `speed` | af_heart, 1.05 | Kokoro voice and speed |
 

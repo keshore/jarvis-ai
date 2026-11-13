@@ -9,7 +9,7 @@ import collections, os, queue, re, threading, time
 import numpy as np
 import sounddevice as sd
 
-from . import aec, config, llm, platform_, sessions, sinks, stt, textprep, tts_client, vad
+from . import aec, config, intent, llm, platform_, sessions, sinks, stt, textprep, tts_client, vad
 
 SR = 16000
 BLOCK = vad.BLOCK               # 512 samples = 32 ms (what Silero expects)
@@ -75,10 +75,18 @@ def speak_last(kind, key):
 
 
 def voice_command(text, sink, key):
-    """True if the sentence was a command for us."""
-    c = textprep.classify(text)
-    if c is None:
-        return False
+    """Handle the sentence if it is for us. Returns the text to forward to the AI, or None when it was handled here."""
+    kind, val = intent.interpret(text, CFG)
+    if kind == "forward":
+        if val != text:
+            print(f"  (cleaned up: {val})", flush=True)
+        return val
+    if kind == "answer":
+        print(f"  (answered locally: {val})", flush=True)
+        tts_client.speak(val)
+        return None
+    c = val
+    print(f"  (command: {c})", flush=True)
     if c == "stop":
         tts_client.stop()
     elif c == "interrupt":
@@ -97,7 +105,7 @@ def voice_command(text, sink, key):
         m = c.split("_")[1]
         textprep.set_mode(m)
         tts_client.speak("Okay, I'll read everything." if m == "full" else "Okay, summaries only.")
-    return True
+    return None
 
 
 def route(cfg, default_sink):
@@ -235,9 +243,10 @@ def main():
 
             sink, key, where = route(cfg, default_sink)
             print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe] -> {where}", flush=True)
-            if voice_command(text, sink, key):
+            fwd = voice_command(text, sink, key)
+            if fwd is None:
                 continue
-            sink.send(text)
+            sink.send(fwd)
             while not q.empty():
                 q.get()
 
