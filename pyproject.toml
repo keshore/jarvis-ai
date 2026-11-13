@@ -9,7 +9,7 @@ description = "Local, private, hands-free voice for any AI agent: speech in and 
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "MIT" }
-keywords = ["voice", "speech-to-text", "text-to-speech", "whisper", "kokoro", "claude-code", "codex", "ai-agent", "local", "privacy"]
+keywords = ["voice", "voice-control", "hands-free", "speech-to-text", "text-to-speech", "whisper", "kokoro", "dictation", "tts", "stt", "barge-in", "claude-code", "codex", "ai-agent", "local", "offline", "privacy", "accessibility"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",

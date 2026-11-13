@@ -11,15 +11,18 @@
   "license": "MIT",
   "keywords": [
     "voice",
+    "voice-control",
+    "hands-free",
+    "dictation",
     "speech",
     "tts",
     "stt",
     "whisper",
     "kokoro",
-    "hands-free",
-    "accessibility",
     "local",
-    "privacy"
+    "offline",
+    "privacy",
+    "accessibility"
   ],
   "icon": "./.claude-plugin/icon.png"
 }
