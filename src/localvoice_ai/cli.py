@@ -330,6 +330,28 @@ def cmd_doctor(a):
 ADVANCED = ["start", "stop", "sessions", "summarize", "say", "mode", "target", "enable", "disable", "hook"]
 
 
+HELP_TOP = """Talk to your AI agent and hear its answers. Speech recognition and the voice run on this machine.
+
+get started:
+  setup       one-time download of the speech models (about 2 GB)
+  doctor      check the microphone, speakers and models
+  on / off    turn voice on, or stop everything and keep it off
+  status      what is running, which sessions, which model
+
+use with any tool:
+  run         add voice to any interactive CLI:    localvoice-ai run -- aider
+  speak       read text aloud:                     some-agent | localvoice-ai speak
+              (--mode full reads everything, default is a short version)
+
+while talking, say:
+  "stop" silences the voice          "interrupt" also stops the AI's turn
+  "read it all"  the whole reply     "summarize that"  a short version
+"""
+HELP_END = """more commands (rarely needed): """ + ", ".join(ADVANCED) + """
+  'localvoice-ai <command> -h' shows the options of one command.
+files: ~/.localvoice-ai/config.toml, listener.log, tts.log      docs: https://github.com/keshore/localvoice-ai"""
+
+
 def _suggest(choices):
     """Unknown or abbreviated command: say what was probably meant instead of listing everything."""
     import difflib
@@ -342,9 +364,9 @@ def _suggest(choices):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="localvoice-ai", description="Local, private, hands-free voice for any AI agent.",
-                                 epilog="more (rarely needed): " + ", ".join(ADVANCED) + "   ('localvoice-ai <command> -h' for details)")
-    sp = ap.add_subparsers(dest="cmd", required=True, metavar="command")
+    ap = argparse.ArgumentParser(prog="localvoice-ai", description=HELP_TOP, epilog=HELP_END,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sp = ap.add_subparsers(dest="cmd", required=True, metavar="<command>", title=argparse.SUPPRESS)
 
     s = sp.add_parser("setup", help="download the speech models")
     s.add_argument("--models", nargs="*", help="model names to download (default: the big model)")
@@ -384,7 +406,7 @@ def main():
     s.add_argument("--no-speak", action="store_true"); s.add_argument("--idle", type=float, default=1.5)
     s.add_argument("command", nargs=argparse.REMAINDER); s.set_defaults(f=cmd_run)
 
-    sp._choices_actions = [a for a in sp._choices_actions if a.dest not in ADVANCED]   # hide plumbing from -h (still callable)
+    ap._subparsers._group_actions.clear(); sp._choices_actions = []   # the grouped text above replaces argparse's flat list; every command stays callable
     _suggest(sp.choices)
     a = ap.parse_args()
     a.f(a)
