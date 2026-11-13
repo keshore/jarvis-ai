@@ -1,58 +1,74 @@
 # localvoice-ai
 
-Hands-free voice for **any AI agent**, running entirely on your own machine. What you say and what the AI says
-back never leave your computer: speech recognition (Whisper) and the voice (Kokoro) are local models.
+[![PyPI](https://img.shields.io/pypi/v/localvoice-ai)](https://pypi.org/project/localvoice-ai/)
+[![Python](https://img.shields.io/pypi/pyversions/localvoice-ai)](https://pypi.org/project/localvoice-ai/)
+[![tests](https://github.com/keshore/localvoice-ai/actions/workflows/test.yml/badge.svg)](https://github.com/keshore/localvoice-ai/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/keshore/localvoice-ai/blob/main/LICENSE)
+
+**Talk to your AI agent hands-free and hear its answers, entirely on your own machine.**
+Speech recognition ([Whisper](https://github.com/openai/whisper)) and the voice ([Kokoro](https://github.com/hexgrad/kokoro)) are local
+models. What you say and what the AI says back never leave your computer.
 
 - **Talk, don't type.** Your speech is typed into the session you are looking at.
-- **Hear the answer, your way.** Brief by default; say *"read it all"* for the whole reply, *"summarize that"* for a summary.
+- **Hear the answer your way.** Brief by default. Say *"read it all"* for the whole reply, *"summarize that"* for a summary.
 - **Talk over it.** Start speaking and it stops and listens (barge-in).
-- **No extra tokens.** Spoken commands are matched locally; the AI never sees them. The default summary is rule-based.
-- **Optional local LLM** for nicer summaries or to chat with directly. Skipped silently if you do not have one.
-- **Works with** Claude Code (plugin), Codex, Copilot CLI, aider, ollama, desktop apps, or anything with a terminal or a text box.
+- **No extra tokens.** Spoken commands are matched locally and the AI never sees them. The default summary is rule-based.
+- **Optional local LLM** for nicer summaries, or to chat with directly. Silently skipped if you do not have one.
+- **Works with** Claude Code (as a plugin), Codex, Copilot CLI, aider, ollama, desktop apps: anything with a terminal or a text box.
 
-> Status: early (v0.2). Developed and tested on macOS / Apple Silicon. Linux, Intel Macs and Windows are supported by design and
-> by unit tests in CI, but the audio path has not been exercised there yet. Issues and reports welcome.
+> **Status: early (v0.3).** Developed and tested on macOS with Apple Silicon. Linux, Intel Macs and Windows are supported by design and the
+> portable logic is unit-tested on all three in CI, but the audio path has not been exercised there yet. Reports and fixes are welcome.
 
 ## Install
 
-**1. The engine** (any machine; needs Python 3.10 to 3.13, not 3.14 yet):
+**1. The engine.** Any machine with Python 3.10 to 3.13 (not 3.14 yet):
 
 ```bash
-git clone https://github.com/keshore/localvoice-ai && cd localvoice-ai
-./install.sh              # macOS / Linux: private venv in ~/.localvoice-ai, command in ~/.local/bin, downloads the models
-localvoice-ai doctor      # checks microphone, speakers and models
+pipx install --python python3.12 localvoice-ai      # brew install pipx   (or: pip install pipx)
+localvoice-ai setup                                 # one-time download: voice ~330 MB + Whisper model ~1.6 GB
+localvoice-ai doctor                                # checks microphone, speakers and models
 ```
 
-Prefer pipx? `brew install pipx` (or `pip install pipx`), then
-`pipx install --python python3.12 localvoice-ai` and `localvoice-ai setup`.
-([PyPI page](https://pypi.org/project/localvoice-ai/).) The first setup downloads the voice (~330 MB) and the Whisper model (~1.6 GB).
+No pipx? From a clone, `./install.sh` does the same with a private virtual environment:
 
-**2. The Claude Code plugin**, if you use Claude Code (Claude Code 2.1.275 or later):
+```bash
+git clone https://github.com/keshore/localvoice-ai && cd localvoice-ai && ./install.sh
+```
+
+**2. The Claude Code plugin** (Claude Code 2.1.275 or later):
 
 ```
 /plugin install localvoice-ai --marketplace keshore/localvoice-ai
 ```
 
-That is all: there is no command to run. When a session starts, voice switches itself on, loads the models in the
-background and listens. Just talk. When your last session closes, everything stops and frees its memory.
+Restart Claude Code and that is all: there is no command to run. When a session starts, voice switches itself on, loads the models in
+the background (about ten seconds) and listens. When your last session closes, everything stops and gives its memory back.
 
-Linux needs PortAudio (`apt install libportaudio2`); on Linux/Windows the `keystroke` sink also needs `pip install 'localvoice-ai[keys]'`.
+**Permissions (macOS):** allow the microphone for your terminal app the first time. Controlling iTerm2 or typing into other apps
+asks for *Automation* / *Accessibility* access. **Linux:** `sudo apt install libportaudio2`. For the `keystroke` sink on Linux or
+Windows also `pip install 'localvoice-ai[keys]'`.
 
 ## Using it
 
-Speak normally. Say **"stop"** to silence the voice, **"interrupt"** to stop the AI's current turn.
+Just talk. Say **"stop"** to silence the voice and **"interrupt"** to stop the AI's current turn.
 
 | Say | Does (handled locally, never sent to the AI) |
 |---|---|
 | "read it all" / "read everything" | reads the whole last reply |
-| "summarize that" / "give me the summary" | reads a short version (local LLM if you have one) |
-| "read everything from now on" / "summaries only from now on" | sets the default |
+| "summarize that" / "give me the summary" | reads a short version (uses the local LLM if you have one) |
+| "read everything from now on" / "summaries only from now on" | sets the default for every reply |
 | "read the clipboard" / "summarize the clipboard" | reads what you copied (for apps with no hook) |
 | "stop" | silences the voice |
 | "interrupt" / "cancel that" | silences it and presses Escape in the AI |
 
-Phrases that name something else ("summarize the auth file") go to the AI as normal.
-`localvoice-ai off` stops everything and keeps it off; `localvoice-ai on` turns it back on; `LOCALVOICE_AI_DISABLE=1` skips a session.
+Anything that names something else, like "summarize the auth file", goes to the AI as normal.
+
+```bash
+localvoice-ai off        # stop everything and keep it off
+localvoice-ai on         # turn it back on
+localvoice-ai status     # what is running, which sessions, which model
+```
+`LOCALVOICE_AI_DISABLE=1` keeps voice off for a single session.
 
 ### Several sessions
 
@@ -61,40 +77,86 @@ reads its reply aloud. A reply that finishes in a background session is saved, s
 
 ## Any other agent
 
-| How | Use |
+| You want | Use |
 |---|---|
 | Read any command's output aloud | `some-agent ... \| localvoice-ai speak` |
-| Tool has a hook / notify command with JSON | `localvoice-ai hook json` (e.g. Codex: `notify = ["localvoice-ai", "hook", "json"]` in `~/.codex/config.toml`; unverified) |
-| Any interactive CLI, no hooks needed | `localvoice-ai run -- aider` (voice in and out; macOS/Linux) |
-| A GUI app (chat window) | speech is typed into it (`keystroke` sink); copy a reply and say "read the clipboard" |
+| A tool with a hook or notify command that sends JSON | `localvoice-ai hook json` (Codex: `notify = ["localvoice-ai", "hook", "json"]` in `~/.codex/config.toml`; unverified) |
+| Any interactive CLI, no hooks needed | `localvoice-ai run -- aider` (voice in and out; macOS, Linux, WSL) |
+| A desktop or browser chat window | speech is typed into the focused window (`keystroke` sink); copy a reply and say "read the clipboard" |
 | Talk to a local model directly | `localvoice-ai start --sink llm` (needs the optional LLM) |
 
-Sinks, i.e. where your speech goes: `iterm`, `tmux`, `keystroke` (types into the focused window: mind the focus), `pty`, `exec`, `llm`, `stdout`.
+Where your speech goes is called a *sink*: `iterm`, `tmux`, `keystroke` (types into whatever has focus, so mind where the cursor is),
+`pty`, `exec`, `llm`, `stdout`.
 
 ## Optional local LLM
 
-Nothing needs it. If one is available, "summarize that" uses it instead of the rule-based summary.
-- **Apple Silicon:** `pipx inject localvoice-ai mlx-lm` (or `pip install 'localvoice-ai[llm]'`), then `localvoice-ai setup --llm` (Qwen3-4B, 2.3 GB, loaded on demand, unloaded after 5 idle minutes).
-- **Any machine:** install [Ollama](https://ollama.com) and `ollama pull llama3.2:3b`. It is detected automatically.
+Nothing needs it. When one is available, "summarize that" uses it instead of the rule-based summary.
+
+- **Apple Silicon:** `pipx inject localvoice-ai mlx-lm` (or `pip install 'localvoice-ai[llm]'`), then `localvoice-ai setup --llm`.
+  Qwen3-4B, 2.3 GB, loaded on demand and unloaded after five idle minutes.
+- **Any machine:** install [Ollama](https://ollama.com) and run `ollama pull llama3.2:3b`. It is detected automatically.
 
 ## Configuration
 
-`~/.localvoice-ai/config.toml` (see `examples/config.toml`) and `~/.localvoice-ai/glossary.txt` (names Whisper should recognise).
-Every key can be overridden with `LOCALVOICE_AI_<KEY>`. Useful ones: `wake_word = "hey claude"` (ignore room chatter until you say it),
-`barge_ratio` (raise if it interrupts itself, lower if it misses you; headphones are most reliable), `stt_model` (default is the big
-Whisper model; on a slow CPU set a smaller one such as `"small.en"`), `voice`, `speed`, `mode`.
+`~/.localvoice-ai/config.toml` (see the [example](https://github.com/keshore/localvoice-ai/blob/main/examples/config.toml)) and
+`~/.localvoice-ai/glossary.txt` (names Whisper should recognise: project names, libraries, people). Any key can be overridden with
+`LOCALVOICE_AI_<KEY>`.
+
+| Key | Default | Use |
+|---|---|---|
+| `wake_word` | none | e.g. `"hey claude"`: ignore everything until you say it, then stay awake for `wake_window` seconds |
+| `stt_model` | big (large-v3-turbo) | on a slow CPU set a smaller one such as `"small.en"` |
+| `barge_ratio` | 2.2 | how much louder than the echo you must be to interrupt; raise it if the voice interrupts itself |
+| `mode` | brief | `brief` or `full` |
+| `voice`, `speed` | af_heart, 1.05 | Kokoro voice and speed |
 
 ## Privacy
 
-The microphone feeds a local volume detector and a local Whisper model. The only network use is the one-time model download
-(GitHub releases and Hugging Face). No telemetry. The mic is open while it runs: `touch ~/.localvoice-ai/.paused` pauses it,
-`localvoice-ai off` ends it. The voice daemon listens on `127.0.0.1` only and requires a per-run secret token.
+The microphone feeds a local volume detector and a local Whisper model. The only network use is the one-time model download (GitHub
+releases and Hugging Face). There is no telemetry. The microphone is open while it runs: `touch ~/.localvoice-ai/.paused` pauses
+it and `localvoice-ai off` ends it. The voice daemon listens on `127.0.0.1` only and requires a secret token that changes on every start.
+
+## Troubleshooting
+
+| Symptom | Try |
+|---|---|
+| Nothing happens when I talk | `localvoice-ai status`, then read `~/.localvoice-ai/listener.log`. A line `(ignored, start with 'hey claude')` means a wake word is set. |
+| No sound | check the system volume is not muted; `localvoice-ai doctor` checks the speakers; log: `~/.localvoice-ai/tts.log` |
+| The voice interrupts itself | raise `barge_ratio` (try 3), or use headphones |
+| It hears room chatter | set a `wake_word`, or move the microphone closer |
+| `pipx` or install fails on Python 3.14 | pass `--python python3.12`; 3.14 is not supported yet |
+| First start is slow | the Whisper model loads on every start (about ten seconds); it stays loaded while a session is open |
 
 ## Known limits
 
-- Barge-in on laptop speakers is a level heuristic, not true echo cancellation.
-- Volume-based voice detection can trigger in a noisy room: use `wake_word`.
-- `localvoice-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen TUIs redraw a lot, so prefer a tool's own hook.
-- Reading replies aloud needs a hook, a pipe, `run`, or the clipboard: GUI chat apps expose none, so there is no automatic read-back there yet.
+- Barge-in on laptop speakers is a loudness heuristic, not true echo cancellation. Headphones are the most reliable.
+- Volume-based voice detection can fire in a noisy room: use a `wake_word`.
+- `localvoice-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen terminal UIs redraw constantly, so prefer a tool's own hook.
+- Reading replies aloud needs a hook, a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
+  read-back there yet.
 
-See `docs/ARCHITECTURE.md` and `ROADMAP.md`. MIT licensed.
+## How it works
+
+```
+ mic -> Whisper (local) -> spoken command? -- yes --> handled here, the AI never sees it
+                                  | no
+                                  v
+                   the session you are looking at -> your AI
+
+ your AI's reply -> hook / pipe / run / clipboard -> brief or full -> Kokoro voice (local) -> speakers
+```
+
+More in the [architecture notes](https://github.com/keshore/localvoice-ai/blob/main/docs/ARCHITECTURE.md) and the
+[roadmap](https://github.com/keshore/localvoice-ai/blob/main/ROADMAP.md).
+
+## Contributing
+
+```bash
+git clone https://github.com/keshore/localvoice-ai && cd localvoice-ai
+pip install -e '.[dev]' && pytest
+```
+Issues and pull requests are welcome, especially reports from Linux, Windows and Intel Macs.
+
+## License
+
+[MIT](https://github.com/keshore/localvoice-ai/blob/main/LICENSE)

@@ -1,6 +1,6 @@
 {
   "name": "localvoice-ai",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Talk to Claude Code hands-free and hear its replies, fully local: your voice and its answers never leave your machine. No slash command needed: voice switches on by itself.",
   "author": {
     "name": "keshore",

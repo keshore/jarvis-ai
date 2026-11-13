@@ -7,7 +7,7 @@
       "name": "localvoice-ai",
       "source": "./adapters/claude-code",
       "description": "Hands-free voice for Claude Code, fully local. Switches on by itself; talk to it and hear its replies without anything leaving your machine.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "category": "productivity",
       "keywords": ["voice", "speech", "whisper", "kokoro", "hands-free", "accessibility", "local", "privacy"]
     }

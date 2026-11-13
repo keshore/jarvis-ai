@@ -4,13 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "localvoice-ai"
-version = "0.3.0"
+version = "0.3.1"
 description = "Local, private, hands-free voice for any AI agent: speech in and out on your own machine, nothing leaves it."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "MIT" }
 keywords = ["voice", "speech-to-text", "text-to-speech", "whisper", "kokoro", "claude-code", "codex", "ai-agent", "local", "privacy"]
 classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
   "Operating System :: MacOS",
@@ -38,6 +44,9 @@ localvoice-ai = "localvoice_ai.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/keshore/localvoice-ai"
+Repository = "https://github.com/keshore/localvoice-ai"
+Issues = "https://github.com/keshore/localvoice-ai/issues"
+Changelog = "https://github.com/keshore/localvoice-ai/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]
