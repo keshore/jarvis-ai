@@ -8,7 +8,9 @@ import collections, os, queue, re, subprocess, sys, time
 import numpy as np
 import sounddevice as sd
 
-from . import config, sinks, textprep, tts_client
+import threading
+
+from . import config, llm, sinks, textprep, tts_client
 
 SR = 16000
 BLOCK = 480                      # 30 ms
@@ -38,9 +40,30 @@ def load_glossary():
     return ("Terms that may come up: " + ", ".join(words) + ".")[:600] if words else None
 
 
+CFG = {}
+
+
+def use_llm():
+    s = CFG.get("summarizer", "auto")
+    return s == "llm" or (s == "auto" and llm.usable(CFG))
+
+
+def _llm_brief(raw):
+    if not llm.loaded():
+        tts_client.speak("One moment.")
+    try:
+        tts_client.speak(llm.summarize(raw, CFG))
+    except Exception as e:
+        print("  (local model failed, using the simple summary:", e, ")", flush=True)
+        tts_client.speak(textprep.speak_text(raw, "brief"))
+
+
 def speak_last(kind, sink):
     key = sink.target() or "default"
     raw = textprep.load_last(key)
+    if raw and kind == "brief" and use_llm():
+        threading.Thread(target=_llm_brief, args=(raw,), daemon=True).start()
+        return
     tts_client.speak(textprep.speak_text(raw, kind) if raw else "I have nothing to read yet.")
 
 
@@ -66,11 +89,13 @@ def voice_command(text, sink):
 def main():
     import mlx_whisper
     cfg = config.load()
+    CFG.update(cfg)
     sink = sinks.get(cfg)
     model = cfg["stt_model"]
     glossary = load_glossary()
     end_silence, min_thr = float(cfg["end_silence"]), float(cfg["min_threshold"])
 
+    print(f"summaries: {'local model ' + cfg['llm_model'] if use_llm() else 'simple (no local model installed)'}", flush=True)
     print(f"loading {model} (first run downloads it) ...", flush=True)
     mlx_whisper.transcribe(np.zeros(SR, dtype=np.float32), path_or_hf_repo=model, language=cfg["language"])
     tts_client.ensure_server()
@@ -78,9 +103,13 @@ def main():
     q = queue.Queue()
     with sd.InputStream(samplerate=SR, channels=1, blocksize=BLOCK, dtype="float32",
                         callback=lambda indata, f, t, s: q.put(indata[:, 0].copy())):
+        while time.time() < tts_until() + 0.5:           # never calibrate on our own voice
+            time.sleep(0.2)
+        while not q.empty():
+            q.get()
         noise = [float(np.sqrt(np.mean(q.get() ** 2))) for _ in range(40)]
         thr = max(min_thr, float(np.median(noise)) * 5.0)
-        print(f"listening (sink={cfg['sink']}, threshold {thr:.4f}). Say 'stop' to silence, 'interrupt' to stop the AI.",
+        print(f"listening (sink={cfg['sink']}, threshold {thr:.4f}{', wake word: ' + cfg['wake_word'] if cfg['wake_word'] else ''}). Say 'stop' to silence, 'interrupt' to stop the AI.",
               flush=True)
 
         recent = collections.deque(maxlen=int((PRE_ROLL + 0.3) * SR / BLOCK))
@@ -89,6 +118,9 @@ def main():
         barge_in, ratio = bool(cfg["barge_in"]), float(cfg["barge_ratio"])
         smooth, echo_win, hot = 0.0, collections.deque(), 0
         last_on, learn_until, was_on = 0.0, 0.0, False
+        wake_words = (cfg.get("wake_word") or "").lower().split()
+        wake_rx = re.compile(r"^[\W_]*" + r"[\W_]+".join(map(re.escape, wake_words)) + r"[\W_]*", re.I) if wake_words else None
+        wake_window, awake_until = float(cfg["wake_window"]), 0.0
 
         while True:
             blk = q.get()
@@ -168,6 +200,18 @@ def main():
                 continue                                         # likely a hallucination on noise
             if text.lower().strip(" .!?,") in JUNK or re.fullmatch(r"[\W_]*", text):
                 continue
+            if wake_rx:
+                m = wake_rx.match(text)
+                if m:
+                    text = text[m.end():].strip()
+                    awake_until = time.time() + wake_window
+                    if not text:
+                        print("  (awake)", flush=True)
+                        continue
+                elif time.time() > awake_until:
+                    continue                                     # not for me: ignore room chatter
+                else:
+                    awake_until = time.time() + wake_window
             print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe]", flush=True)
             if voice_command(text, sink):
                 continue

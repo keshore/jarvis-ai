@@ -44,6 +44,10 @@ def cmd_setup(a):
         repo = WHISPER.get(name, name)
         print(f"fetching speech model {repo} ...")
         snapshot_download(repo)
+    if a.llm:
+        cfg = config.load()
+        print(f"fetching local model {cfg['llm_model']} ...")
+        snapshot_download(cfg["llm_model"])
     gl = config.path("glossary.txt")
     if not os.path.exists(gl):
         open(gl, "w").write("# one term per line: names Whisper tends to mishear (project names, libraries, people)\n")
@@ -112,6 +116,17 @@ def cmd_speak(a):
     for k in {key, key.split(":")[-1]}:
         textprep.save_last(k, raw)
     tts_client.speak(textprep.speak_text(raw, a.mode))
+
+
+def cmd_summarize(a):
+    """Summarize stdin with the local model and print it (add --speak to read it aloud)."""
+    from . import llm
+    cfg = config.load()
+    raw = sys.stdin.read()
+    out = llm.summarize(raw, cfg)
+    print(out)
+    if a.speak:
+        tts_client.speak(out)
 
 
 def cmd_say(a):
@@ -191,7 +206,7 @@ def cmd_doctor(a):
     check("platform is macOS", sys.platform == "darwin", "Linux/Windows backends are not implemented yet")
     for f in KOKORO_FILES:
         check(f"model {f}", os.path.exists(config.path("models", f)), "run `localvoice setup`")
-    for mod in ("sounddevice", "soundfile", "kokoro_onnx", "mlx_whisper"):
+    for mod in ("sounddevice", "soundfile", "kokoro_onnx", "mlx_whisper", "mlx_lm"):
         try:
             __import__(mod)
             check(f"python module {mod}", True)
@@ -206,6 +221,7 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
 
     s = sp.add_parser("setup", help="download the speech models"); s.add_argument("--models", nargs="*", help="small big or a HF repo")
+    s.add_argument("--llm", action="store_true", help="also download the local summary/chat model")
     s.set_defaults(f=cmd_setup)
     s = sp.add_parser("start", help="start listening + voice in the background")
     s.add_argument("--model", help="small | big | HF repo"); s.add_argument("--sink"); s.add_argument("--target")
@@ -217,6 +233,7 @@ def main():
     s = sp.add_parser("speak", help="read stdin aloud (brief or full per mode)")
     s.add_argument("--mode", choices=["brief", "full"]); s.add_argument("--key"); s.add_argument("--session")
     s.add_argument("--claude-hook", action="store_true", help="stdin is a Claude Code hook payload"); s.set_defaults(f=cmd_speak)
+    s = sp.add_parser("summarize", help="summarize stdin with the local model"); s.add_argument("--speak", action="store_true"); s.set_defaults(f=cmd_summarize)
     s = sp.add_parser("say", help="re-read the last reply"); s.add_argument("kind", choices=["brief", "full"])
     s.add_argument("--key"); s.set_defaults(f=cmd_say)
     s = sp.add_parser("mode", help="default for automatic speech"); s.add_argument("mode", choices=["brief", "full"]); s.set_defaults(f=cmd_mode)

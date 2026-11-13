@@ -20,6 +20,14 @@ DEFAULTS = {
     "min_threshold": 0.02,            # floor for the volume threshold
     "barge_in": True,                 # talk over the voice to interrupt it
     "barge_ratio": 2.2,               # how much louder than the echo you must be (raise if it self-interrupts)
+    "summarizer": "auto",             # "summarize that": auto (local LLM if installed) | llm | extractive
+    "llm_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",   # or Qwen3-1.7B-4bit (1 GB)
+    "llm_idle_seconds": 300,          # unload the model from memory after this much idle time
+    "llm_max_tokens": 250,
+    "llm_system": "You are a concise voice assistant. Answer in at most three short, natural spoken sentences. "
+                  "No markdown, lists, code or symbols.",
+    "wake_word": "",                  # e.g. "hey claude": ignore speech until you say it (then stay awake)
+    "wake_window": 30,                # seconds you can keep talking after the wake word
     "app": "",                        # sink=keystroke: app to bring to front before typing
 }
 

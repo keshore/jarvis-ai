@@ -4,6 +4,7 @@
   tmux       send keys to a tmux pane                      target = pane id (e.g. %3)
   keystroke  type into the frontmost macOS app (any GUI)   needs Accessibility permission
   exec       run a command, text on stdin, speak its reply (works with ollama, llm, aichat, ...)
+  llm        talk to the built-in local model (mlx-lm), with a short memory; reply is printed and spoken
   stdout     print the transcript (pipe it anywhere)
 """
 import os, subprocess, sys
@@ -102,12 +103,43 @@ class Exec(Sink):
             tts_client.speak(textprep.speak_text(reply, self.cfg.get("mode", "brief")))
 
 
+class Llm(Sink):
+    """Talk to the local model directly: keeps a short conversation, prints and speaks each reply."""
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.history = []
+        self.lock = __import__("threading").Lock()
+
+    def target(self):
+        return "llm"
+
+    def send(self, text):
+        __import__("threading").Thread(target=self._reply, args=(text,), daemon=True).start()
+
+    def _reply(self, text):
+        from . import llm, textprep, tts_client
+        with self.lock:
+            self.history = (self.history + [{"role": "user", "content": text}])[-20:]
+            msgs = [{"role": "system", "content": self.cfg["llm_system"]}] + self.history
+            try:
+                reply = llm.generate(msgs, self.cfg)
+            except Exception as e:
+                print("  (local model error:", e, ")", flush=True)
+                self.history.pop()
+                return
+            self.history.append({"role": "assistant", "content": reply})
+        print("\n" + reply + "\n", flush=True)
+        textprep.save_last("llm", reply)
+        tts_client.speak(textprep.speak_text(reply))
+
+
 class Stdout(Sink):
     def send(self, text):
         print(text, flush=True)
 
 
-SINKS = {"iterm": Iterm, "tmux": Tmux, "keystroke": Keystroke, "exec": Exec, "stdout": Stdout}
+SINKS = {"iterm": Iterm, "tmux": Tmux, "keystroke": Keystroke, "exec": Exec, "llm": Llm, "stdout": Stdout}
 
 
 def get(cfg):
