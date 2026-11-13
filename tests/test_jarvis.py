@@ -203,3 +203,81 @@ def test_open_runs_only_after_approval(home, tmp_path, monkeypatch):
     assert opened == [(str(tmp_path / "proj" / "jarvis-ai"), "codex")] and said[-1] == "Opened jarvis ai."
     assert jarvis.handle("open a session in banana", cfg, speak=said.append, approve=lambda p, c: pytest.fail("no"), background=False)
     assert "can't find" in said[-1]
+
+
+def script(monkeypatch, replies):
+    """A fake local model that answers each call with the next scripted reply and records what it was given."""
+    from jarvis_ai import llm
+    calls = []
+    monkeypatch.setattr(llm, "usable", lambda cfg: True)
+    monkeypatch.setattr(llm, "loaded", lambda: True)
+
+    def gen(messages, cfg, n=None):
+        calls.append(messages)
+        return replies.pop(0)
+    monkeypatch.setattr(llm, "generate", gen)
+    return calls
+
+
+def convo(tmp_path):
+    p = tmp_path / "c.jsonl"
+    p.write_text("".join(json.dumps({"type": k, "message": {"role": k, "stop_reason": "end_turn" if k == "assistant" else None, "content": [{"type": "text", "text": t}]}}) + "\n" for k, t in [
+        ("user", "why is the upload failing"), ("assistant", "First reply: the import matched staff only by Emp ID. 14 of 15 tests pass."),
+        ("user", "<system-reminder>ignore me</system-reminder>"), ("user", "and the timetable"), ("assistant", "Second reply: the timetable page is unchanged.")]))
+    return {"id": "s1", "agent": "claude", "transcript": str(p)}
+
+
+TCFG = {**CFG, "answer_timeout": 2}
+
+
+def test_work_orders_go_to_the_agent_without_touching_the_model(tmp_path, monkeypatch):
+    calls = script(monkeypatch, [])
+    for said in ("run the tests", "can you fix the failing test", "please update the changelog", "Jarvis, deploy it"):
+        assert jarvis.talk(said, convo(tmp_path), TCFG) == ("agent", "")
+    assert calls == []
+
+
+def test_small_talk_is_answered_without_seeing_the_project(tmp_path, monkeypatch):
+    calls = script(monkeypatch, ["CHAT: Good morning. Shall we break something today? \U0001F604"])
+    assert jarvis.talk("good morning", convo(tmp_path), TCFG) == ("say", "Good morning. Shall we break something today?")
+    assert "Emp ID" not in json.dumps(calls)                            # the conversation is not in the small-talk prompt
+    calls = script(monkeypatch, ["ASK", "CHAT: The migration ran fine and all 15 tests pass."])        # small talk drifting into "facts"
+    assert jarvis.talk("how are things", convo(tmp_path), TCFG) == ("agent", "")
+
+
+def test_questions_about_the_work_are_answered_only_from_the_conversation(tmp_path, monkeypatch):
+    calls = script(monkeypatch, ["14 of 15 tests pass."])
+    assert jarvis.talk("how many tests pass", convo(tmp_path), TCFG) == ("say", "14 of 15 tests pass.")
+    prompt = calls[0][1]["content"]
+    assert "14 of 15 tests pass" in prompt and "system-reminder" not in prompt and len(calls) == 1      # a worky question skips the small-talk step
+    script(monkeypatch, ["ASK"])
+    assert jarvis.talk("is the login test affected", convo(tmp_path), TCFG) == ("agent", "")
+    calls = script(monkeypatch, ["It said the import matched staff only by Emp ID."])                    # a question goes to the conversation first
+    assert jarvis.talk("can you explain that more simply", convo(tmp_path), TCFG)[0] == "say" and "CONVERSATION" in calls[0][1]["content"]
+    script(monkeypatch, ["ASK", "CHAT: Functioning as expected."])                                        # no answer there, plain small talk: chat
+    assert jarvis.talk("how do you feel about mondays", convo(tmp_path), TCFG) == ("say", "Functioning as expected.")
+    calls = script(monkeypatch, ["ASK"])                                                                  # names something from the work: never small talk
+    assert jarvis.talk("what do you think about the timetable page", convo(tmp_path), TCFG) == ("agent", "") and len(calls) == 1
+    script(monkeypatch, ["WORK"])
+    assert jarvis.talk("the upload thing is sorted then", convo(tmp_path), TCFG) == ("agent", "")       # a statement, not a question
+    calls = script(monkeypatch, [])
+    assert jarvis.talk("how many tests pass", {"id": "x", "agent": "claude", "transcript": str(tmp_path / "none.jsonl")}, TCFG) == ("agent", "")
+    assert calls == []                                                                                    # no conversation: nothing to answer from
+
+
+def test_follow_ups_remember_the_last_exchange(tmp_path, monkeypatch):
+    calls = script(monkeypatch, ["The second one is unchanged."])
+    jarvis.talk("and what about the second one?", convo(tmp_path), TCFG, memory=[("how many tests pass", "14 of 15 tests pass.")])
+    assert "They said: how many tests pass" in calls[0][1]["content"]
+
+
+def test_no_model_means_everything_goes_to_the_agent(tmp_path, monkeypatch):
+    from jarvis_ai import llm
+    monkeypatch.setattr(llm, "usable", lambda cfg: False)
+    assert jarvis.talk("good morning", convo(tmp_path), TCFG) == ("agent", "")
+
+
+def test_earlier_replies_can_be_fetched(tmp_path):
+    from jarvis_ai import agents
+    rs = agents.claude_replies(convo(tmp_path)["transcript"], 5)
+    assert [r.split(":")[0] for r in rs] == ["First reply", "Second reply"]

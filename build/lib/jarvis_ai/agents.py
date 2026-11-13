@@ -151,6 +151,62 @@ def _claude_text(msg):
     return "\n".join(b.get("text", "") for b in c or [] if isinstance(b, dict) and b.get("type") == "text").strip()
 
 
+def claude_context(path, max_chars=7000, max_bytes=400_000):
+    """The recent conversation of a session as plain text ("You: ..." / "Agent: ..."), newest kept when it is too long.
+    Only what the two of you wrote: tool calls, tool output and sub-agents are left out."""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            fh.seek(max(0, size - max_bytes))
+            raw = fh.read().decode("utf-8", "ignore")
+    except OSError:
+        return ""
+    turns = []
+    for line in raw.split("\n")[1 if size > max_bytes else 0:]:
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("isSidechain") or d.get("isMeta") or d.get("type") not in ("user", "assistant"):
+            continue
+        text = _claude_text(d.get("message") or {})
+        if not text or text.lstrip().startswith("<"):       # system reminders, command wrappers, hook output
+            continue
+        turns.append(("You: " if d["type"] == "user" else "Agent: ") + text.strip())
+    out, total = [], 0
+    for t in reversed(turns):
+        if total + len(t) > max_chars:
+            if not out:
+                out.append(t[-max_chars:])
+            break
+        out.append(t)
+        total += len(t)
+    return "\n\n".join(reversed(out))
+
+
+def claude_replies(path, n=6, max_bytes=1_500_000):
+    """The last n finished replies of a session, oldest first (for "read the one before that")."""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            fh.seek(max(0, size - max_bytes))
+            raw = fh.read().decode("utf-8", "ignore")
+    except OSError:
+        return []
+    out = []
+    for line in raw.split("\n")[1 if size > max_bytes else 0:]:
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        m = d.get("message") or {}
+        if d.get("type") == "assistant" and not d.get("isSidechain") and m.get("stop_reason") == "end_turn":
+            text = _claude_text(m)
+            if text:
+                out.append(text)
+    return out[-n:]
+
+
 class Tail:
     """Follows one transcript and yields each finished reply once. Starts at the end: old replies are not re-read."""
 

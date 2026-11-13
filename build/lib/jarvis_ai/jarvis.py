@@ -152,7 +152,7 @@ def _mentions(rest, s):
     return any(w == h or h.startswith(w) or w.startswith(h) for w in said for h in name)
 
 
-def model_parse(rest, ss, cfg):
+def model_parse(rest, ss, cfg, speak=None):
     """Ask the local model which of Jarvis's commands was meant. Returns (action, session dict or None, text) or None.
     The model only picks from the list; a session is a number from the list we gave it, never a name it wrote; the text
     of an `ask` must be made of words the person actually said."""
@@ -169,7 +169,12 @@ def model_parse(rest, ss, cfg):
             pass
     th = threading.Thread(target=work, daemon=True)
     th.start()
-    th.join(float(cfg.get("frontend_timeout", 6)))
+    wait = float(cfg.get("frontend_timeout", 6))
+    if not llm.loaded():                                  # first use, or unloaded after idle: loading takes a few seconds
+        if speak:
+            speak("One moment.")
+        wait = max(wait, 30.0)
+    th.join(wait)
     m = re.search(r"\{.*\}", box.get("out", ""), flags=re.S)
     try:
         d = json.loads(m.group(0)) if m else None
@@ -309,7 +314,7 @@ def handle(rest, cfg, speak=None, say_reply=None, approve=gate.approve, backgrou
     if p:
         action, who, text = p
     else:
-        mp = model_parse(rest, ss, cfg)
+        mp = model_parse(rest, ss, cfg, speak)
         if not mp:
             return False
         action, s, text = mp
@@ -374,3 +379,139 @@ def _open(who, agent_word, cfg, ss, speak, approve, background):
             speak("I couldn't open a terminal here. This works in iTerm, Terminal and tmux.")
     threading.Thread(target=go, daemon=True).start() if background else go()
     return True
+
+
+# ---------- you talk to Jarvis; Jarvis answers what it can and asks before involving the agent ----------
+# Two separate steps, on purpose. Small talk is answered WITHOUT the project conversation, so it cannot misstate the work.
+# Questions about the work are answered ONLY from the conversation, or not at all. (One combined prompt made the model
+# invent answers in testing; the split did not.)
+PERSONA = "a calm, dry-witted British assistant: polite, brief, quietly confident, with the occasional understated joke"
+
+CHAT_SYSTEM = """You are Jarvis, %(persona)s. You are the voice %(user)s talks to while they work with an AI coding agent.
+Decide what they just said to you:
+- Small talk (a greeting, thanks, a joke, how they or you feel, a question about you yourself): reply
+  CHAT: <one or two short spoken sentences, in character>
+- Anything else (their work, code, a task, a factual question, the news, the weather, the time): reply with the single word WORK
+You know nothing about their project, the outside world, the time or the weather, so never state such facts. No emoji, no markdown.%(extra)s"""
+
+ANSWER_SYSTEM = """You are Jarvis, a voice assistant between a person and their AI coding agent (%(agent)s).
+Below is their recent conversation with the agent, oldest first. The person now says something to YOU.
+If they ask about, or ask you to summarize, repeat or explain, something that is clearly stated in the conversation: do so in at
+most four short spoken sentences, plain words, no markdown, using ONLY what the conversation says. "It", "that" and "the last
+one" mean the agent's most recent reply unless they say "previous" or "earlier".
+In every other case reply with exactly the single word ASK. That includes: the answer is not in the conversation, you are not
+sure, it needs new work, code changes, running something, checking files, or an opinion or advice the conversation does not contain.
+Never guess. Never invent file names, numbers or results."""
+
+ASK_LINES = ("That one needs {agent}. Shall I ask?", "I'd have to put that to {agent}. Shall I?", "That's beyond what I've seen. Shall I ask {agent}?",
+             "{agent} would know. Want me to ask?")
+
+_POLITE = re.compile(r"^(?:(?:please|jarvis|hey|ok|okay|so|and|well|now)[\s,]+|(?:can|could|would|will) you (?:please )?|i(?:'d| would) like you to |i want you to )+", re.I)
+_QUESTION = re.compile(r"^(?:what|why|how|when|where|who|which|whose|did|does|do|is|are|was|were|has|have|had|remind me|tell me|"
+                       r"explain|summari[sz]e|recap|repeat|go over|walk me through|say (?:that|it) again|what about|give me (?:the|a) (?:summary|gist|short|key|main))\b", re.I)
+_REQUEST = re.compile(r"^(?:go ahead|let's|lets|you should|make|add|fix|run|create|update|change|remove|delete|write|build|implement|do it|"
+                      r"deploy|install|refactor|rename|commit|push|revert|undo|open|close|start|stop|test|check|look (?:at|into)|find|search|show me the (?:code|file|diff))\b", re.I)
+_TO_AGENT = re.compile(r"^(?:ask (?:claude|codex|the agent|it|him|her|them)|tell (?:claude|codex|the agent|it)|send (?:that|it|this)(?: to (?:claude|codex|the agent|it))?|"
+                       r"pass (?:that|it) on|check with (?:claude|codex|the agent))\b[\s,:]*(.*)$", re.I | re.S)
+_PREV = re.compile(r"\b(?:previous|earlier|the one before|before that|second to last|prior)\b", re.I)
+_WORKY = re.compile(r"\b(code|file|files|test|tests|bug|build|deploy|commit|branch|migration|database|server|error|function|api|repo|"
+                    r"pull request|merge|script|query|table|endpoint|package|install|log|logs|weather|news|temperature)\b|[\w-]+\.(?:py|ts|tsx|js|json|md|sql|toml|yml|yaml)\b|\d{2,}", re.I)
+_EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️‍]+")
+
+
+def bare(text):
+    """The sentence without politeness in front: 'can you please summarize that' -> 'summarize that'."""
+    return _POLITE.sub("", text.strip())
+
+
+def looks_like_question(text):
+    """A question, or a request to explain / summarize / repeat: things Jarvis may answer itself. Work orders are not."""
+    t = bare(text)
+    return bool(t) and not _REQUEST.match(t) and bool(_QUESTION.match(t) or text.strip().endswith("?"))
+
+
+def agent_label(s):
+    return {"claude": "Claude", "codex": "Codex"}.get((s or {}).get("agent", ""), "the agent")
+
+
+def _generate(messages, cfg, n, speak, timeout_key="answer_timeout"):
+    from . import llm
+    box = {}
+
+    def work():
+        try:
+            box["out"] = llm.generate(messages, cfg, n)
+        except Exception:
+            pass
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    wait = float(cfg.get(timeout_key, 12))
+    if not llm.loaded():
+        if speak:
+            speak("One moment.")
+        wait = max(wait, 40.0)
+    th.join(wait)
+    return box.get("out", "").strip()
+
+
+def _memory(memory):
+    return "".join(f"They said: {q}\nYou said: {a}\n" for q, a in (memory or [])[-3:])
+
+
+def talk(text, s, cfg, speak=None, memory=None):
+    """What Jarvis does with a sentence said to it. Returns ("say", words) when Jarvis answers itself (small talk, or from the
+    conversation), or ("agent", "") when the agent is needed. Work orders never reach the model: they are the agent's."""
+    from . import llm
+    t = bare(text)
+    if not llm.usable(cfg) or not t or _REQUEST.match(t):
+        return "agent", ""
+    ctx = agents.claude_context(s["transcript"], int(cfg.get("answer_context_chars", 12000))) if s and s.get("transcript") else ""
+    question, mem = looks_like_question(text), _memory(memory)
+    small = bool(_SMALL.match(t)) and not _WORKY.search(t)
+
+    def chat():
+        if _WORKY.search(t) or _about_the_work(t, ctx):
+            return None                                    # it refers to the work: small talk must not answer it
+        who = (cfg.get("call_me") or "").strip()
+        system = CHAT_SYSTEM % {"persona": cfg.get("persona") or PERSONA, "user": who or "the person",
+                                "extra": f"\nAddress them as {who} now and then, not in every reply." if who else ""}
+        out = _generate([{"role": "system", "content": system}, {"role": "user", "content": (f"EARLIER:\n{mem}\n" if mem else "") + f"THEY NOW SAY: {text}"}], cfg, 90, speak)
+        m = re.match(r"^CHAT\s*:\s*(.+)$", out, flags=re.S)
+        if not m and small and out and not re.match(r"^\W*(WORK|ASK)\b", out):
+            m = re.match(r"^(.+)$", out, flags=re.S)       # obvious small talk answered without the "CHAT:" label
+        words = _EMOJI.sub("", textprep.inline(m.group(1))).strip() if m else ""
+        return words if words and len(words) <= 400 and not _WORKY.search(words) else None
+
+    def answer():
+        if len(ctx) < 80:
+            return None                                    # nothing to ground an answer on
+        out = _generate([{"role": "system", "content": ANSWER_SYSTEM % {"agent": agent_label(s)}},
+                         {"role": "user", "content": f"CONVERSATION:\n{ctx}\n\n" + (f"EARLIER BETWEEN YOU AND THEM:\n{mem}\n" if mem else "") + f"THE PERSON NOW SAYS TO YOU: {text}"}], cfg, 200, speak)
+        words = _EMOJI.sub("", textprep.inline(out)).strip()
+        return None if not words or re.search(r"\bASK\b", words) or len(words) > 800 else words
+
+    # obvious small talk: chat. A question: the conversation first, small talk only if that has no answer. Anything else: chat or the agent.
+    steps = (chat,) if small else (answer, chat) if question else (chat,)
+    for step in steps:
+        words = step()
+        if words:
+            return "say", words
+    return "agent", ""
+
+
+_SMALL = re.compile(r"^(?:hi|hello|hey|good (?:morning|afternoon|evening|night)|thanks|thank you|cheers|nice|great|well done|good job|tell me a joke|"
+                    r"(?:make|crack) (?:me )?(?:a )?joke|how are you|how(?:'s| is) it going|how are you (?:doing|holding up)|who are you|what are you|"
+                    r"what(?:'s| is) your name|are you there|you there|i(?:'m| am) (?:tired|exhausted|bored|back|done|hungry)|never ?mind|sorry)\b", re.I)
+_STOPWORDS = set("about after again before could doing every first going other really should their there these thing things think those where which while would "
+                 "what when your yours being right still today please thanks great maybe might never always".split())
+
+
+def _about_the_work(t, ctx):
+    """Does the sentence use a distinctive word from the conversation? ('the timetable page' when the agent wrote about a timetable)"""
+    words = {w for w in re.findall(r"[a-z]{5,}", t.lower())} - _STOPWORDS
+    return bool(words) and bool(words & set(re.findall(r"[a-z]{5,}", ctx.lower())))
+
+
+def ask_line(s):
+    import random
+    return random.choice(ASK_LINES).format(agent=agent_label(s))

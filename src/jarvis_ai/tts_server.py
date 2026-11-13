@@ -49,7 +49,7 @@ def chunks(text, limit=280):
 
 def worker():
     while True:
-        text, my_gen = latest.get()
+        text, my_gen, voice = latest.get()
         if my_gen != gen:
             continue
         ready = queue.Queue(maxsize=2)
@@ -59,7 +59,7 @@ def worker():
                 if my_gen != gen:
                     break
                 try:
-                    samples, sr = k.create(c, voice=cfg["voice"], speed=float(cfg["speed"]), lang="en-us")
+                    samples, sr = k.create(c, voice=voice or cfg["voice"], speed=float(cfg["speed"]), lang="en-us")
                 except Exception:
                     continue
                 ready.put((samples, sr))
@@ -122,7 +122,9 @@ def main():
         gen += 1
         stop_playback()
         if text != "__STOP__":
-            latest.put((text, gen))
+            m = re.match(r"__VOICE:([a-z]{2}_[a-z0-9]+)__\n?", text)      # optional per-message voice (Jarvis's own voice)
+            voice = m.group(1) if m else ""
+            latest.put((text[m.end():] if m else text, gen, voice))
 
 
 if __name__ == "__main__":

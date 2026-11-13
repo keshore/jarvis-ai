@@ -58,12 +58,19 @@ DEFAULTS = {
     "llm_backend": "auto",            # auto | mlx (Apple Silicon) | ollama (any machine) | openai (any OpenAI-compatible server)
     "llm_url": "",                    # backend openai: e.g. http://127.0.0.1:8080/v1 (llama.cpp), http://127.0.0.1:1234/v1 (LM Studio)
     "llm_api_model": "",              # backend openai: model name, if the server needs one
-    "llm_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",     # backend mlx: any MLX model, or "auto" (picks 1.7B / 4B / 8B by memory)
+    "llm_model": "auto",     # backend mlx: any MLX model, or "auto" (picks 1.7B / 4B / 8B by memory)
     "ollama_model": "llama3.2:3b",    # backend ollama
     "ollama_url": "http://127.0.0.1:11434",
     "llm_idle_seconds": 300,          # unload the model from memory after this much idle time
     "llm_max_tokens": 250,
     "name": "jarvis",                 # say it first to talk to the assistant itself: "Jarvis, switch to the portal session". "" turns it off
+    "talk_to": "jarvis",              # jarvis: you talk to Jarvis; it answers what the conversation already holds, chats, and asks
+                                      #         before passing anything to the agent (needs a local model; without one it behaves like "agent")
+                                      # agent:  what you say is typed straight into the session in front
+    "confirm_agent": "always",        # always: Jarvis asks "shall I ask Claude?" and waits for your yes | never: it passes things on directly
+    "persona": "",                    # Jarvis's character in one line; empty = calm, dry-witted British assistant
+    "call_me": "",                    # what Jarvis calls you now and then, e.g. "sir" or your name
+    "jarvis_voice": "bm_george",      # the voice Jarvis uses for its own words; replies read from the agent keep `voice`
     "open_cmd": "claude",             # "Jarvis, open a session in <project>": the agent to start there
     "project_dirs": [],               # folders that hold your projects; empty = common ones (~/src, ~/code ...) and those of open sessions
     "discover": True,                 # find agent sessions and read their replies without a plugin (Claude Code today)

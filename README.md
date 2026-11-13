@@ -80,7 +80,25 @@ jarvis-ai status     # what is running, which sessions, which model
 ```
 `JARVIS_AI_DISABLE=1` keeps voice off for a single session.
 
-### Talking to Jarvis itself
+### You talk to Jarvis, Jarvis talks to the agent
+
+With a local model, what you say goes to Jarvis first (`talk_to = "jarvis"`, the default), not straight into the agent:
+
+- **Small talk** ("good morning", "tell me a joke") is answered by Jarvis in character. This step never sees your project, so it cannot misstate it.
+- **Questions about the work** ("how many tests pass?", "explain that more simply", "summarize what it said about the upload") are answered
+  from the session's own conversation, and only when the answer is stated there.
+- **Anything else** (a task, or a question the conversation does not answer): Jarvis asks *"That one needs Claude. Shall I ask?"* A plain
+  **yes** sends your words to the agent; **no** drops it. "Ask Claude ..." sends directly.
+- "Summarize the previous response" and "read the one before that" reach back to earlier replies.
+
+Jarvis speaks in its own voice (`jarvis_voice`), so you can tell it from the agent's replies being read out. Set `persona` and `call_me`
+to change its character and what it calls you. `talk_to = "agent"` restores plain dictation; `confirm_agent = "never"` passes things on without asking.
+Without a local model it behaves like `talk_to = "agent"`.
+
+Measured with Qwen3-8B on a test conversation (28 sentences): no invented facts; it answered or chatted where it could and asked for the rest.
+Qwen3-4B invented an answer twice, so the larger model is the default where memory allows (`llm_model = "auto"`).
+
+### Commands for Jarvis itself
 
 Start a sentence with the name (`name` in the config, default "jarvis"):
 
@@ -155,6 +173,8 @@ Each sentence waits for the model first (about a second on a 3 to 4B model), so 
 | `open_cmd`, `project_dirs` | claude, common folders | what "open a session" starts, and where your projects live |
 | `discover` | true | find agent sessions and read their replies without a plugin |
 | `approval` | dialog | `dialog` (click to approve) or `voice` (say yes; weaker) |
+| `talk_to`, `confirm_agent` | jarvis, always | talk to Jarvis first (or `agent` for plain dictation); ask before passing things to the agent |
+| `persona`, `call_me`, `jarvis_voice` | dry-witted British assistant, none, bm_george | Jarvis's character, what it calls you, its Kokoro voice |
 | `frontend` | commands | `off`: exact phrases only. `commands`: loose wording, plus the local LLM for short unusual requests. `assistant`: the local LLM sees every sentence, of any length: it can run a command or forward your sentence lightly cleaned of dictation slips |
 | `mode` | brief | `brief` or `full` |
 | `voice`, `speed` | af_heart, 1.05 | Kokoro voice and speed |

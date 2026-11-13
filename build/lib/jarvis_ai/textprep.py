@@ -123,6 +123,10 @@ _INTERRUPT = re.compile(r"^(?:interrupt|cancel|cancel that|stop that|stop workin
 
 def classify(text):
     t = norm(text)
+    m = re.match(r"^(read|repeat|say|summari[sz]e|give me|recap)\b.*\b(?:(?:previous|earlier|prior) (?:response|reply|answer|message|one|thing)|"
+                 r"one before(?: that)?|before that)(?: again| out loud| aloud| for me| to me)*$", t)
+    if m and len(t.split()) <= 10:                       # "summarize the previous response": which reply is decided by the caller
+        return "full" if m.group(1) in ("read", "repeat", "say") else "brief"
     for name, rx in (("clip_full", _CLIP_FULL), ("clip_brief", _CLIP_BRIEF), ("mode_full", _MODE_FULL), ("mode_brief", _MODE_BRIEF), ("full", _FULL),
                      ("brief", _BRIEF), ("stop", _STOP), ("interrupt", _INTERRUPT)):
         if rx.match(t):
