@@ -11,7 +11,7 @@ models. What you say and what the AI says back never leave your computer.
 
 - **Talk, don't type.** Your speech is typed into the session you are looking at.
 - **Hear the answer your way.** Brief by default. Say *"read it all"* for the whole reply, *"summarize that"* for a summary.
-- **Talk over it.** Start speaking and it stops and listens (barge-in).
+- **Talk over it.** Start speaking and it stops and listens (barge-in). Reliable on speakers too with the optional echo cancellation.
 - **No extra tokens.** Spoken commands are matched locally and the AI never sees them. The default summary is rule-based.
 - **Optional local LLM** for nicer summaries, or to chat with directly. Silently skipped if you do not have one.
 - **Works with** Claude Code (as a plugin), Codex, Copilot CLI, aider, ollama, desktop apps: anything with a terminal or a text box.
@@ -43,6 +43,10 @@ git clone https://github.com/keshore/localvoice-ai && cd localvoice-ai && ./inst
 
 Restart Claude Code and that is all: there is no command to run. When a session starts, voice switches itself on, loads the models in
 the background (about ten seconds) and listens. When your last session closes, everything stops and gives its memory back.
+
+**Optional: echo cancellation**, so you can interrupt the voice when it plays through speakers (headphones do not need it):
+`pipx inject localvoice-ai aec-audio-processing` (or `pip install 'localvoice-ai[aec]'`; Python 3.11+). It builds a small C++ library, so macOS needs the
+Xcode Command Line Tools and Linux a compiler; Windows has a prebuilt wheel. Without it everything still works, with a weaker interruption check.
 
 **Permissions (macOS):** allow the microphone for your terminal app the first time. Controlling iTerm2 or typing into other apps
 asks for *Automation* / *Accessibility* access. **Linux:** `sudo apt install libportaudio2`. For the `keystroke` sink on Linux or
@@ -106,7 +110,9 @@ Nothing needs it. When one is available, "summarize that" uses it instead of the
 |---|---|---|
 | `wake_word` | none | e.g. `"hey claude"`: ignore everything until you say it, then stay awake for `wake_window` seconds |
 | `stt_model` | big (large-v3-turbo) | on a slow CPU set a smaller one such as `"small.en"` |
-| `barge_ratio` | 2.2 | how much louder than the echo you must be to interrupt; raise it if the voice interrupts itself |
+| `vad` | silero | `silero` (neural speech detector, recommended) or `volume` (plain loudness gate) |
+| `echo_cancel`, `aec_delay_ms` | auto, 150 | echo cancellation when installed; the speaker-to-microphone delay of your machine (150 fits a MacBook Pro) |
+| `barge_ratio` | 2.2 | only without echo cancellation: how much louder than the echo you must be to interrupt |
 | `mode` | brief | `brief` or `full` |
 | `voice`, `speed` | af_heart, 1.05 | Kokoro voice and speed |
 
@@ -122,15 +128,17 @@ it and `localvoice-ai off` ends it. The voice daemon listens on `127.0.0.1` only
 |---|---|
 | Nothing happens when I talk | `localvoice-ai status`, then read `~/.localvoice-ai/listener.log`. A line `(ignored, start with 'hey claude')` means a wake word is set. |
 | No sound | check the system volume is not muted; `localvoice-ai doctor` checks the speakers; log: `~/.localvoice-ai/tts.log` |
-| The voice interrupts itself | raise `barge_ratio` (try 3), or use headphones |
-| It hears room chatter | set a `wake_word`, or move the microphone closer |
+| The voice interrupts itself | install the echo cancellation extra, or raise `barge_ratio` (try 3), or use headphones |
+| It does not notice me talking over it | install the echo cancellation extra (speakers feed the voice back into the mic), or use headphones; tune `aec_delay_ms` |
+| It picks up other people talking nearby | set a `wake_word`. Fans, keyboards and music are already ignored by the speech detector. |
 | `pipx` or install fails on Python 3.14 | pass `--python python3.12`; 3.14 is not supported yet |
 | First start is slow | the Whisper model loads on every start (about ten seconds); it stays loaded while a session is open |
 
 ## Known limits
 
-- Barge-in on laptop speakers is a loudness heuristic, not true echo cancellation. Headphones are the most reliable.
-- Volume-based voice detection can fire in a noisy room: use a `wake_word`.
+- Without the echo cancellation extra, interrupting on laptop speakers relies on a loudness heuristic that can miss you. Headphones are always reliable.
+- With it, the first second or so of an interruption can be clipped, and `aec_delay_ms` is tuned on one MacBook Pro; other machines may need a different value.
+- The speech detector separates speech from noise, not one speaker from another: use a `wake_word` if people talk near you.
 - `localvoice-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen terminal UIs redraw constantly, so prefer a tool's own hook.
 - Reading replies aloud needs a hook, a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
   read-back there yet.

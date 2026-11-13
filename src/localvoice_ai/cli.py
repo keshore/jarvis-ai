@@ -304,7 +304,7 @@ def cmd_doctor(a):
     print(f"platform: {sys.platform}, python {sys.version.split()[0]}, speech backend: {stt.backend_name(cfg)}")
     for f in KOKORO_FILES:
         check(f"voice model {f}", os.path.exists(config.path("models", f)), "run `localvoice-ai setup`")
-    mods = ["sounddevice", "kokoro_onnx", "mlx_whisper" if stt.backend_name(cfg) == "mlx" else "faster_whisper"]
+    mods = ["sounddevice", "kokoro_onnx", "pysilero_vad", "mlx_whisper" if stt.backend_name(cfg) == "mlx" else "faster_whisper"]
     for mod in mods:
         try:
             __import__(mod)

@@ -24,9 +24,14 @@ DEFAULTS = {
     "exec_cmd": "",                   # sink=exec: shell command; transcript on stdin, reply spoken
     "mode": "brief",                  # automatic speech: brief | full
     # --- listening ---
+    "vad": "silero",                  # silero (neural, recommended) | volume (plain loudness gate)
+    "vad_start": 0.6,                 # speech probability needed to start an utterance
+    "vad_end": 0.35,                  # below this for end_silence seconds ends it
     "end_silence": 0.65,              # seconds of quiet that ends an utterance
-    "min_threshold": 0.02,            # floor for the volume threshold
+    "min_threshold": 0.02,            # volume floor (fallback gate, and level check for barge-in)
     "max_threshold": 0.06,            # ceiling: a noisy moment at startup must not make you inaudible
+    "echo_cancel": "auto",            # auto (WebRTC AEC if installed: pip install localvoice-ai[aec]) | off
+    "aec_delay_ms": 150,              # speaker -> microphone round trip on your machine
     "barge_in": True,                 # talk over the voice to interrupt it
     "barge_ratio": 2.2,               # how much louder than the echo you must be
     "wake_word": "",                  # e.g. "hey claude": ignore speech until you say it (then stay awake)

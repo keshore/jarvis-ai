@@ -29,6 +29,7 @@ dependencies = [
   "sounddevice",
   "huggingface_hub",
   "kokoro-onnx",
+  "pysilero-vad",
   "tomli; python_version < '3.11'",
   "mlx-whisper; sys_platform == 'darwin' and platform_machine == 'arm64'",
   "faster-whisper; sys_platform != 'darwin' or platform_machine != 'arm64'",
@@ -36,6 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 llm = ["mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'"]   # elsewhere use Ollama (no Python deps)
+aec = ["aec-audio-processing; python_version >= '3.11'"]                   # echo cancellation; builds a C++ library on macOS/Linux
 keys = ["pynput; sys_platform != 'darwin'"]                                  # keystroke sink on Linux/Windows
 dev = ["pytest"]
 

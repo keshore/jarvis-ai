@@ -6,14 +6,16 @@ import os, queue, re, secrets, socket, threading, time
 import sounddevice as sd
 from kokoro_onnx import Kokoro
 
-from . import config
+from . import aec, config
 
 cfg = config.load()
 MODELS = config.path("models")
 k = Kokoro(os.path.join(MODELS, "kokoro-v1.0.onnx"), os.path.join(MODELS, "voices-v1.0.bin"))
 latest = queue.Queue()
 gen = 0
+ref_seq = 0
 lock = threading.Lock()
+PUBLISH_REF = cfg.get("echo_cancel", "auto") != "off"
 
 
 def mark_speaking(until):
@@ -72,7 +74,15 @@ def worker():
             with lock:
                 if my_gen != gen:
                     continue
-                mark_speaking(time.time() + len(samples) / sr)
+                t_play = time.time()
+                mark_speaking(t_play + len(samples) / sr)
+                if PUBLISH_REF:
+                    global ref_seq
+                    ref_seq += 1
+                    try:
+                        aec.publish(samples, sr, t_play, ref_seq)      # lets the listener cancel our own echo
+                    except OSError:
+                        pass
                 sd.play(samples, sr)
             sd.wait()
 
