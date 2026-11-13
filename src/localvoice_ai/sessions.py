@@ -6,6 +6,9 @@ import json, os, re, time
 from . import config, platform_
 
 
+STALE_AFTER = 12 * 3600      # hook sessions with no activity for this long are forgotten; the next prompt re-registers them
+
+
 def _dir():
     return config.path("sessions")
 
@@ -39,6 +42,9 @@ def all():
                 continue
             if s.get("pid") and not platform_.pid_alive(s["pid"]):        # wrapped program is gone
                 remove(s["id"])
+                continue
+            if not s.get("pid") and (s.get("seen") or s.get("created")) and time.time() - (s.get("seen") or s["created"]) > STALE_AFTER:
+                remove(s["id"])             # a hook session whose end we never heard of (crash, closed window)
                 continue
             out.append(s)
     except OSError:
@@ -81,8 +87,8 @@ def refresh(s):
         front = platform_.front_app()
         if front and front != s.get("app"):
             s["app"], changed = front, True
-    if changed:
-        register(s)
+    s["seen"] = time.time()
+    register(s)
     return s
 
 

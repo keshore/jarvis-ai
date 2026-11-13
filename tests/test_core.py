@@ -236,3 +236,11 @@ def test_cli_help_hides_plumbing_and_suggests(capsys, monkeypatch):
     with pytest.raises(SystemExit) as e:
         cli.main()
     assert "start" in str(e.value) and "status" in str(e.value)
+
+
+def test_stale_hook_sessions_are_forgotten(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALVOICE_AI_HOME", str(tmp_path))
+    from localvoice_ai import sessions
+    sessions.register({"id": "old", "sink": "iterm", "target": "T", "created": time.time() - 13 * 3600})
+    sessions.register({"id": "fresh", "sink": "iterm", "target": "U", "created": time.time() - 13 * 3600, "seen": time.time()})
+    assert [s["id"] for s in sessions.all()] == ["fresh"]

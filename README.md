@@ -128,6 +128,7 @@ it and `localvoice-ai off` ends it. The voice daemon listens on `127.0.0.1` only
 |---|---|
 | Nothing happens when I talk | `localvoice-ai status`, then read `~/.localvoice-ai/listener.log`. A line `(ignored, start with 'hey claude')` means a wake word is set. |
 | No sound | check the system volume is not muted; `localvoice-ai doctor` checks the speakers; log: `~/.localvoice-ai/tts.log` |
+| Typing by voice works but replies are silent | that Claude session started before the plugin was installed, so it has no hooks: restart it. `localvoice-ai status` lists the sessions voice knows about. |
 | The voice interrupts itself | install the echo cancellation extra, or raise `barge_ratio` (try 3), or use headphones |
 | It does not notice me talking over it | install the echo cancellation extra (speakers feed the voice back into the mic), or use headphones; tune `aec_delay_ms` |
 | It picks up other people talking nearby | set a `wake_word`. Fans, keyboards and music are already ignored by the speech detector. |

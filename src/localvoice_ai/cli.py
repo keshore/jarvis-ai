@@ -1,5 +1,5 @@
 """localvoice-ai command line."""
-import argparse, json, os, subprocess, sys, urllib.request
+import argparse, json, os, subprocess, sys, time, urllib.request
 
 from . import config, platform_, sessions, textprep, tts_client
 
@@ -149,6 +149,9 @@ def cmd_status(a):
     for s in ss:
         where = s.get("app") or s.get("target", "")
         print(f"  {s['id'][:8]}  {s['sink']:9} {where}")
+    if not ss:
+        print("  none yet: a Claude Code session joins when it starts or when you send a prompt in it.")
+    print("note: a Claude Code session started BEFORE the plugin was installed has no hooks: restart it to get voice replies.")
 
 
 def cmd_sessions(a):
@@ -265,6 +268,8 @@ def cmd_hook(a):
             _spawn_listener()                              # e.g. after a reboot or a crash
         tts_client.stop()                                  # you are talking now: be quiet
     elif a.event == "claude-stop":
+        s["seen"] = time.time()
+        sessions.register(s)
         if _muted():
             return
         raw = textprep.claude_hook_message(d)
