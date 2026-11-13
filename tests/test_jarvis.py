@@ -134,3 +134,72 @@ def test_an_ended_session_does_not_shadow_the_live_one_in_the_same_tab(home, mon
     sessions.register({"id": "pty-123", "sink": "pty", "target": "/sock", "pid": os.getpid()})
     jarvis.sync()
     assert len(sessions.all()) == 2                                           # other kinds of sessions are left alone
+
+
+@pytest.mark.parametrize("rest,want", [
+    ("open a session in college portal", ("open", "college portal", "")), ("start a new codex session for jarvis ai", ("open", "jarvis ai", "codex")),
+    ("launch claude in the portal app", ("open", "the portal app", "claude")), ("open the door in the house", None),
+])
+def test_parse_open(rest, want):
+    assert jarvis.parse(rest) == want
+
+
+def model(monkeypatch, reply):
+    from jarvis_ai import llm
+    monkeypatch.setattr(llm, "usable", lambda cfg: True)
+    monkeypatch.setattr(llm, "generate", lambda messages, cfg, n=None: reply)
+
+
+SS = [{"id": "s1", "name": "college-portal-app-88", "cwd": "/w/college-portal-app"}, {"id": "s2", "name": "jarvis-ai-3", "cwd": "/w/jarvis-ai"}]
+
+
+def test_model_fills_the_form_but_code_checks_every_field(monkeypatch):
+    cfg = {**CFG, "frontend": "commands", "frontend_timeout": 2}
+    model(monkeypatch, '{"action": "ask", "session": 1, "text": "run the tests"}')
+    assert jarvis.model_parse("could you get the portal one to run the tests", SS, cfg) == ("ask", SS[0], "run the tests")
+    model(monkeypatch, '{"action": "ask", "session": 1, "text": "delete the database"}')            # words you never said
+    assert jarvis.model_parse("could you get the portal one to run the tests", SS, cfg) is None
+    model(monkeypatch, '{"action": "ask", "session": 1, "text": "refactor the login form"}')        # no session was named: the model picked one
+    assert jarvis.model_parse("refactor the login form", SS, cfg) is None
+    model(monkeypatch, '{"action": "ask", "session": 1, "text": "fix the app"}')                    # "app" alone is too generic to name a session
+    assert jarvis.model_parse("fix the app", SS, cfg) is None
+    model(monkeypatch, '{"action": "switch", "session": 7}')                                         # not in the list
+    assert jarvis.model_parse("bring up the portal one", SS, cfg) is None
+    model(monkeypatch, '{"action": "switch", "session": "jarvis"}')                                  # a name, not a number from the list
+    assert jarvis.model_parse("bring up the other one", SS, cfg) is None
+    for bad in ('{"action": "shell", "session": 1}', '{"action": "none"}', "garbage", ""):
+        model(monkeypatch, bad)
+        assert jarvis.model_parse("refactor the login form", SS, cfg) is None
+    model(monkeypatch, '{"action": "doing", "session": 2}')
+    assert jarvis.model_parse("has the jarvis one wrapped up", SS, cfg) == ("doing", SS[1], "")
+    assert jarvis.model_parse("has the jarvis one wrapped up", SS, {**cfg, "frontend": "off"}) is None
+
+
+def test_find_project_never_guesses(tmp_path):
+    for d in ("src/college-portal-app/apps/admission", "src/portal-docs", "src/jarvis-ai/src", "src/node_modules/jarvis", "src/.hidden/jarvis-ai"):
+        (tmp_path / d).mkdir(parents=True)
+    (tmp_path / "src/college-portal-app/.git").mkdir()
+    roots = [str(tmp_path / "src")]
+    assert jarvis.find_project("jarvis ai", roots) == (str(tmp_path / "src/jarvis-ai"), [])
+    assert jarvis.find_project("college portal", roots)[0] == str(tmp_path / "src/college-portal-app")
+    path, maybe = jarvis.find_project("portal", roots)
+    assert path is None and sorted(maybe) == ["college-portal-app", "portal-docs"]
+    assert jarvis.find_project("admission", roots) == (None, [])                 # inside a repository: not a project
+    assert jarvis.find_project("banana", roots) == (None, [])
+
+
+def test_open_runs_only_after_approval(home, tmp_path, monkeypatch):
+    (tmp_path / "proj" / "jarvis-ai").mkdir(parents=True)
+    cfg = {**CFG, "project_dirs": [str(tmp_path / "proj")], "open_cmd": "claude"}
+    opened, said, seen = [], [], []
+    monkeypatch.setattr(jarvis, "open_session", lambda path, cmd: opened.append((path, cmd)) or True)
+
+    def deny(p, c):
+        seen.append(p.text)
+        return False
+    assert jarvis.handle("open a session in jarvis ai", cfg, speak=said.append, approve=deny, background=False)
+    assert opened == [] and said[-1] == "Not opened." and "claude" in seen[0] and str(tmp_path / "proj" / "jarvis-ai") in seen[0]
+    assert jarvis.handle("start a codex session in jarvis ai", cfg, speak=said.append, approve=lambda p, c: True, background=False)
+    assert opened == [(str(tmp_path / "proj" / "jarvis-ai"), "codex")] and said[-1] == "Opened jarvis ai."
+    assert jarvis.handle("open a session in banana", cfg, speak=said.append, approve=lambda p, c: pytest.fail("no"), background=False)
+    assert "can't find" in said[-1]

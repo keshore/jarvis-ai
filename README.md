@@ -91,6 +91,10 @@ Start a sentence with the name (`name` in the config, default "jarvis"):
 | "Jarvis, is the portal session done?" | working or finished |
 | "Jarvis, read the portal session's reply" | reads that session's last reply |
 | "Jarvis, ask the portal session to run the tests" | shows an approval window with the exact text, then types it there |
+| "Jarvis, open a session in the portal project" | finds the folder, shows an approval window with the command and path, then opens a new tab running your agent (`open_cmd`, default `claude`; "start a codex session in ..." picks another) |
+
+With a local model, looser wording works too ("have the portal one rebuild the image"). The model only fills in a form; code checks that
+the session is one you named and that the message is made of your own words.
 
 Sessions are matched by project folder or session name. If two match equally, or none, Jarvis says so and does nothing.
 What you dictate to the session in front is typed as you said it. Everything else that would type somewhere needs your approval:
@@ -148,6 +152,7 @@ Each sentence waits for the model first (about a second on a 3 to 4B model), so 
 | `echo_cancel`, `aec_delay_ms` | auto, 150 | echo cancellation when installed; the speaker-to-microphone delay of your machine (150 fits a MacBook Pro) |
 | `barge_ratio` | 2.2 | only without echo cancellation: how much louder than the echo you must be to interrupt |
 | `name` | jarvis | the word that addresses the assistant itself; `""` turns that off |
+| `open_cmd`, `project_dirs` | claude, common folders | what "open a session" starts, and where your projects live |
 | `discover` | true | find agent sessions and read their replies without a plugin |
 | `approval` | dialog | `dialog` (click to approve) or `voice` (say yes; weaker) |
 | `frontend` | commands | `off`: exact phrases only. `commands`: loose wording, plus the local LLM for short unusual requests. `assistant`: the local LLM sees every sentence, of any length: it can run a command or forward your sentence lightly cleaned of dictation slips |
