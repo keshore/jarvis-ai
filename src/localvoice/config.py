@@ -18,6 +18,7 @@ DEFAULTS = {
     "mode": "brief",                  # default for automatic speech: brief | full
     "end_silence": 0.65,              # seconds of quiet that ends an utterance
     "min_threshold": 0.02,            # floor for the volume threshold
+    "max_threshold": 0.06,            # ceiling: a noisy moment at startup must not make you inaudible
     "barge_in": True,                 # talk over the voice to interrupt it
     "barge_ratio": 2.2,               # how much louder than the echo you must be (raise if it self-interrupts)
     "summarizer": "auto",             # "summarize that": auto (local LLM if installed) | llm | extractive

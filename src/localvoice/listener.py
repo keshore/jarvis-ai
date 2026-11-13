@@ -107,8 +107,9 @@ def main():
             time.sleep(0.2)
         while not q.empty():
             q.get()
-        noise = [float(np.sqrt(np.mean(q.get() ** 2))) for _ in range(40)]
-        thr = max(min_thr, float(np.median(noise)) * 5.0)
+        noise = [float(np.sqrt(np.mean(q.get() ** 2))) for _ in range(66)]       # ~2 s
+        floor = float(np.percentile(noise, 30))                     # ignore bursts (keys, a passing voice)
+        thr = min(max(min_thr, floor * 5.0), float(cfg["max_threshold"]))
         print(f"listening (sink={cfg['sink']}, threshold {thr:.4f}{', wake word: ' + cfg['wake_word'] if cfg['wake_word'] else ''}). Say 'stop' to silence, 'interrupt' to stop the AI.",
               flush=True)
 
