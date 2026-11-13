@@ -15,13 +15,17 @@ back never leave your computer: speech recognition (Whisper) and the voice (Koko
 
 ## Install
 
-**1. The engine** (any machine, Python 3.10-3.13):
+**1. The engine** (any machine; needs Python 3.10 to 3.13, not 3.14 yet):
 
 ```bash
-pipx install git+https://github.com/keshore/localvoice-ai      # PyPI: `pipx install localvoice-ai` once published
-localvoice-ai setup          # downloads the voice (~330 MB) and the Whisper model (~1.6 GB), once
-localvoice-ai doctor         # checks microphone, speakers and models
+git clone https://github.com/keshore/localvoice-ai && cd localvoice-ai
+./install.sh              # macOS / Linux: private venv in ~/.localvoice-ai, command in ~/.local/bin, downloads the models
+localvoice-ai doctor      # checks microphone, speakers and models
 ```
+
+Prefer pipx? `brew install pipx` (or `pip install pipx`), then
+`pipx install --python python3.12 git+https://github.com/keshore/localvoice-ai` and `localvoice-ai setup`.
+(Once on PyPI: `pipx install localvoice-ai`.) The first setup downloads the voice (~330 MB) and the Whisper model (~1.6 GB).
 
 **2. The Claude Code plugin**, if you use Claude Code (Claude Code 2.1.275 or later):
 
