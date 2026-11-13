@@ -252,6 +252,7 @@ def test_old_localvoice_folder_is_moved_once(tmp_path, monkeypatch):
     (tmp_path / ".localvoice-ai" / "models").mkdir(parents=True)
     (tmp_path / ".localvoice-ai" / "models" / "m.bin").write_text("x")
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))          # Windows reads this one
     monkeypatch.delenv("JARVIS_AI_HOME", raising=False)
     try:
         importlib.reload(config)

@@ -93,4 +93,5 @@ def test_audit_log_records_and_is_private(home, monkeypatch):
     path = home / "audit.log"
     events = [json.loads(l)["event"] for l in path.read_text().splitlines()]
     assert events == ["proposed", "denied"]
-    assert oct(os.stat(path).st_mode)[-3:] == "600"
+    if os.name != "nt":                                         # Windows has no unix permission bits
+        assert oct(os.stat(path).st_mode)[-3:] == "600"
