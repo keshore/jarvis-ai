@@ -1,13 +1,13 @@
 {
-  "name": "localvoice",
+  "name": "localvoice-ai",
   "owner": { "name": "keshore", "url": "https://github.com/keshore" },
   "metadata": { "description": "Local, private, hands-free voice for AI coding agents" },
   "plugins": [
     {
-      "name": "localvoice",
+      "name": "localvoice-ai",
       "source": "./adapters/claude-code",
       "description": "Hands-free voice for Claude Code, fully local. Switches on by itself; talk to it and hear its replies without anything leaving your machine.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "productivity",
       "keywords": ["voice", "speech", "whisper", "kokoro", "hands-free", "accessibility", "local", "privacy"]
     }

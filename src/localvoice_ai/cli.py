@@ -1,4 +1,4 @@
-"""localvoice command line."""
+"""localvoice-ai command line."""
 import argparse, json, os, subprocess, sys, urllib.request
 
 from . import config, platform_, sessions, textprep, tts_client
@@ -27,14 +27,14 @@ def _spawn_listener():
         return False
     config.ensure()
     log = open(config.path("listener.log"), "ab")
-    p = subprocess.Popen([sys.executable, "-m", "localvoice.listener"], stdout=log, stderr=log,
+    p = subprocess.Popen([sys.executable, "-m", "localvoice_ai.listener"], stdout=log, stderr=log,
                          stdin=subprocess.DEVNULL, env=os.environ.copy(), **platform_.detach_kwargs())
     config.write_state("listener.pid", str(p.pid))
     return True
 
 
 def _off():
-    """True after `localvoice stop`/`off`: automatic start-up stays disabled until `localvoice on`."""
+    """True after `localvoice-ai stop`/`off`: automatic start-up stays disabled until `localvoice-ai on`."""
     return os.path.exists(config.path(".off"))
 
 
@@ -53,7 +53,7 @@ def _interactive():
 
 def _auto_enable(sid):
     """Plugin path: register the session and make sure the listener is running. No command needed."""
-    if _off() or not config.load().get("autostart", True) or os.environ.get("LOCALVOICE_DISABLE") or not _interactive():
+    if _off() or not config.load().get("autostart", True) or os.environ.get("LOCALVOICE_AI_DISABLE") or not _interactive():
         return None
     s = sessions.get(sid)
     if not s:
@@ -90,14 +90,14 @@ def cmd_setup(a):
     if not os.path.exists(gl):
         with open(gl, "w") as fh:
             fh.write("# one term per line: names Whisper tends to mishear (project names, libraries, people)\n")
-    print("setup done. Next: `localvoice start`")
+    print("setup done. Next: `localvoice-ai start`")
 
 
 def cmd_start(a):
     if a.model:
-        os.environ["LOCALVOICE_STT_MODEL"] = a.model
+        os.environ["LOCALVOICE_AI_STT_MODEL"] = a.model
     if a.sink:
-        os.environ["LOCALVOICE_SINK"] = a.sink
+        os.environ["LOCALVOICE_AI_SINK"] = a.sink
     if a.target:
         config.write_state("target", a.target)
     elif not config.read_state("target"):
@@ -130,7 +130,7 @@ def _stop_processes():
 def cmd_stop(a):
     _stop_processes()
     config.write_state(".off", "1")
-    print("stopped. It stays off (sessions will not restart it) until you run `localvoice on`.")
+    print("stopped. It stays off (sessions will not restart it) until you run `localvoice-ai on`.")
 
 
 def cmd_on(a):
@@ -283,9 +283,9 @@ def cmd_hook(a):
 def cmd_run(a):
     cmd = [c for c in a.command if c != "--"] if a.command and a.command[0] == "--" else a.command
     if not cmd:
-        sys.exit("usage: localvoice run [--no-speak] -- <command> [args...]")
+        sys.exit("usage: localvoice-ai run [--no-speak] -- <command> [args...]")
     if platform_.IS_WIN:
-        sys.exit("`localvoice run` needs a Unix pseudo-terminal (macOS, Linux, or WSL on Windows).")
+        sys.exit("`localvoice-ai run` needs a Unix pseudo-terminal (macOS, Linux, or WSL on Windows).")
     from . import ptyrun
     ptyrun.run(cmd, speak=not a.no_speak, idle=a.idle)
 
@@ -303,7 +303,7 @@ def cmd_doctor(a):
 
     print(f"platform: {sys.platform}, python {sys.version.split()[0]}, speech backend: {stt.backend_name(cfg)}")
     for f in KOKORO_FILES:
-        check(f"voice model {f}", os.path.exists(config.path("models", f)), "run `localvoice setup`")
+        check(f"voice model {f}", os.path.exists(config.path("models", f)), "run `localvoice-ai setup`")
     mods = ["sounddevice", "kokoro_onnx", "mlx_whisper" if stt.backend_name(cfg) == "mlx" else "faster_whisper"]
     for mod in mods:
         try:
@@ -328,7 +328,7 @@ def cmd_doctor(a):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="localvoice", description="Local, private, hands-free voice for any AI agent.")
+    ap = argparse.ArgumentParser(prog="localvoice-ai", description="Local, private, hands-free voice for any AI agent.")
     sp = ap.add_subparsers(dest="cmd", required=True)
 
     s = sp.add_parser("setup", help="download the speech models")

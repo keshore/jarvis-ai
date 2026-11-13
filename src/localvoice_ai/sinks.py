@@ -3,7 +3,7 @@
   iterm      write into an iTerm2 tab                        (macOS)            target = tab uuid
   tmux       send keys to a tmux pane                        (macOS/Linux/WSL)  target = pane id, e.g. %3
   keystroke  type into the focused window of any app         (all OSes)         app = window to bring to front
-  pty        type into a program started with `localvoice run -- <cmd>`         (macOS/Linux)
+  pty        type into a program started with `localvoice-ai run -- <cmd>`         (macOS/Linux)
   exec       run a command per sentence, speak its reply (ollama, llm, aichat ...)
   llm        talk to the built-in local model (mlx-lm or Ollama), with a short memory
   stdout     print the transcript (pipe it anywhere)
@@ -18,7 +18,7 @@ class Sink:
         self.cfg, self._target, self.app = cfg, target, app
 
     def target(self):
-        return self._target or config.read_state("target") or os.environ.get("LOCALVOICE_TARGET", "")
+        return self._target or config.read_state("target") or os.environ.get("LOCALVOICE_AI_TARGET", "")
 
     def send(self, text):
         raise NotImplementedError

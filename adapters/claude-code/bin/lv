@@ -1,15 +1,15 @@
 #!/bin/sh
-# Finds the `localvoice` command (PATH, pipx/uv, the default venv) and runs it with the given arguments.
+# Finds the `localvoice-ai` command (PATH, pipx/uv, the default venv) and runs it with the given arguments.
 # If it is not installed, the plugin stays quiet except for one hint at session start.
-for c in "$(command -v localvoice 2>/dev/null)" "$HOME/.local/bin/localvoice" "$HOME/.localvoice/venv/bin/localvoice" \
-         /opt/homebrew/bin/localvoice /usr/local/bin/localvoice; do
+for c in "$(command -v localvoice-ai 2>/dev/null)" "$HOME/.local/bin/localvoice-ai" "$HOME/.localvoice-ai/venv/bin/localvoice-ai" \
+         /opt/homebrew/bin/localvoice-ai /usr/local/bin/localvoice-ai; do
   if [ -n "$c" ] && [ -x "$c" ]; then exec "$c" "$@"; fi
 done
 if [ "$2" = "claude-start" ]; then
-  M="${XDG_CACHE_HOME:-$HOME/.cache}/localvoice-hint-shown"
+  M="${XDG_CACHE_HOME:-$HOME/.cache}/localvoice-ai-hint-shown"
   if [ ! -e "$M" ]; then
     mkdir -p "$(dirname "$M")" && : > "$M"
-    printf '%s\n' '{"systemMessage":"localvoice plugin: the localvoice command is not installed yet. Run:  pipx install git+https://github.com/keshore/localvoice && localvoice setup   (then restart Claude Code)"}'
+    printf '%s\n' '{"systemMessage":"localvoice-ai plugin: the localvoice-ai command is not installed yet. Run:  pipx install git+https://github.com/keshore/localvoice-ai && localvoice-ai setup   (then restart Claude Code)"}'
   fi
 fi
 exit 0

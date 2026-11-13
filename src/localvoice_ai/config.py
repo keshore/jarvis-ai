@@ -1,4 +1,4 @@
-"""Paths, config file and small runtime state. Everything lives under one directory (default ~/.localvoice)."""
+"""Paths, config file and small runtime state. Everything lives under one directory (default ~/.localvoice-ai)."""
 import os
 
 try:
@@ -9,7 +9,7 @@ except ModuleNotFoundError:          # Python < 3.11
     except ModuleNotFoundError:
         tomllib = None
 
-HOME = os.environ.get("LOCALVOICE_HOME", os.path.expanduser("~/.localvoice"))
+HOME = os.environ.get("LOCALVOICE_AI_HOME", os.path.expanduser("~/.localvoice-ai"))
 
 DEFAULTS = {
     # --- speech to text ---
@@ -63,7 +63,7 @@ def load():
         with open(f, "rb") as fh:
             cfg.update(tomllib.load(fh))
     for k in list(cfg):
-        v = os.environ.get("LOCALVOICE_" + k.upper())
+        v = os.environ.get("LOCALVOICE_AI_" + k.upper())
         if v is not None:
             d = DEFAULTS.get(k, "")
             cfg[k] = (v.lower() in ("1", "true", "yes", "on")) if isinstance(d, bool) else type(d)(v)

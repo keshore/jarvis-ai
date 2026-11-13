@@ -4,15 +4,15 @@ import pytest
 
 @pytest.fixture
 def lv(tmp_path, monkeypatch):
-    monkeypatch.setenv("LOCALVOICE_HOME", str(tmp_path))
-    from localvoice import config, sessions, textprep, tts_client
+    monkeypatch.setenv("LOCALVOICE_AI_HOME", str(tmp_path))
+    from localvoice_ai import config, sessions, textprep, tts_client
     for m in (config, sessions, textprep, tts_client):
         importlib.reload(m)
     return tmp_path
 
 
 def test_session_registry(lv):
-    from localvoice import sessions
+    from localvoice_ai import sessions
     s = {"id": "abc", "sink": "iterm", "target": "T1", "app": "", "term": "T1"}
     sessions.register(s)
     assert sessions.get("abc")["target"] == "T1"
@@ -22,7 +22,7 @@ def test_session_registry(lv):
 
 
 def test_router_follows_focus(lv, monkeypatch):
-    from localvoice import sessions, platform_
+    from localvoice_ai import sessions, platform_
     sessions.register({"id": "a", "sink": "iterm", "target": "TA", "app": "", "term": "TA"})
     sessions.register({"id": "b", "sink": "iterm", "target": "TB", "app": "", "term": "TB"})
     sessions.register({"id": "c", "sink": "keystroke", "target": "", "app": "Claude", "term": ""})
@@ -36,7 +36,7 @@ def test_router_follows_focus(lv, monkeypatch):
 
 
 def test_router_falls_back_to_last_used(lv, monkeypatch):
-    from localvoice import sessions, platform_, config
+    from localvoice_ai import sessions, platform_, config
     sessions.register({"id": "a", "sink": "tmux", "target": "%1", "app": "", "term": ""})
     sessions.register({"id": "b", "sink": "tmux", "target": "%2", "app": "", "term": ""})
     monkeypatch.setattr(platform_, "front_app", lambda: "Safari")
@@ -46,7 +46,7 @@ def test_router_falls_back_to_last_used(lv, monkeypatch):
 
 
 def test_detect_picks_sink_from_environment(lv, monkeypatch):
-    from localvoice import sessions, platform_
+    from localvoice_ai import sessions, platform_
     monkeypatch.delenv("ITERM_SESSION_ID", raising=False)
     monkeypatch.setenv("TMUX_PANE", "%7")
     assert sessions.detect("x")["sink"] == "tmux"
@@ -57,14 +57,14 @@ def test_detect_picks_sink_from_environment(lv, monkeypatch):
 
 
 def test_last_reply_roundtrip(lv):
-    from localvoice import textprep
+    from localvoice_ai import textprep
     assert textprep.load_last("k") == ""
     textprep.save_last("k", "hello")
     assert textprep.load_last("k") == "hello"
 
 
 def test_hook_json_extracts_reply(lv, monkeypatch):
-    from localvoice import cli, tts_client, textprep
+    from localvoice_ai import cli, tts_client, textprep
     said = []
     monkeypatch.setattr(tts_client, "speak", lambda t: said.append(t))
     a = type("A", (), {"payload": json.dumps({"type": "agent-turn-complete", "last-assistant-message": "All done here."}),
@@ -78,7 +78,7 @@ def test_hook_json_extracts_reply(lv, monkeypatch):
 
 
 def test_hook_json_respects_session_gate(lv, monkeypatch):
-    from localvoice import cli, tts_client
+    from localvoice_ai import cli, tts_client
     said = []
     monkeypatch.setattr(tts_client, "speak", lambda t: said.append(t))
     a = type("A", (), {"payload": '{"message": "hi"}', "field": None, "session": "not-enabled"})()
@@ -87,7 +87,7 @@ def test_hook_json_respects_session_gate(lv, monkeypatch):
 
 
 def test_stt_aliases():
-    from localvoice import stt
+    from localvoice_ai import stt
     assert stt.model_name({"stt_model": "small", "language": "en"}, "faster") == "small.en"
     assert stt.model_name({"stt_model": "small", "language": "de"}, "faster") == "small"
     assert stt.model_name({"stt_model": "small", "language": "en"}, "mlx").startswith("mlx-community/")
@@ -95,7 +95,7 @@ def test_stt_aliases():
 
 
 def test_llm_is_optional(lv):
-    from localvoice import llm, config
+    from localvoice_ai import llm, config
     cfg = config.load()
     cfg["llm_backend"], cfg["ollama_url"] = "ollama", "http://127.0.0.1:9"      # nothing listens there
     assert llm.backend(cfg) is None
@@ -105,7 +105,7 @@ def test_llm_is_optional(lv):
 
 def test_voice_daemon_rejects_bad_token(lv):
     """The client sends '<token>\\n<text>' to the port recorded in tts.port; a server must check the token."""
-    from localvoice import config, tts_client
+    from localvoice_ai import config, tts_client
     srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
     config.write_secret("tts.port", f"{srv.getsockname()[1]} secrettoken")
     got = []
@@ -129,21 +129,21 @@ def test_voice_daemon_rejects_bad_token(lv):
 
 
 def test_clean_output_strips_terminal_noise():
-    from localvoice import ptyrun
+    from localvoice_ai import ptyrun
     raw = b"\x1b[2K\rthinking...\r\x1b[32mHere is the answer.\x1b[0m\r\n\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\r\nSecond line.\r\nSecond line.\r\n"
     assert ptyrun.clean_output(raw) == "Here is the answer.\nSecond line."
 
 
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="needs a Unix pseudo-terminal")
 def test_pty_wrapper_end_to_end(lv, monkeypatch, tmp_path):
-    """Run a tiny echo REPL under `localvoice run`, inject a sentence over the control socket, read its reply."""
+    """Run a tiny echo REPL under `localvoice-ai run`, inject a sentence over the control socket, read its reply."""
     import subprocess
-    env = dict(os.environ, LOCALVOICE_HOME=str(lv))
+    env = dict(os.environ, LOCALVOICE_AI_HOME=str(lv))
     prog = "import sys\nfor l in sys.stdin:\n    print('REPLY TO: ' + l.strip(), flush=True)\n"
-    p = subprocess.Popen([sys.executable, "-m", "localvoice.cli", "run", "--no-speak", "--",
+    p = subprocess.Popen([sys.executable, "-m", "localvoice_ai.cli", "run", "--no-speak", "--",
                           sys.executable, "-u", "-c", prog], env=env, stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    from localvoice import sessions, sinks, config
+    from localvoice_ai import sessions, sinks, config
     importlib.reload(sessions)
     deadline, s = time.time() + 8, None
     while time.time() < deadline and not s:
@@ -169,12 +169,12 @@ def _hook(cli, event, sid="s1", payload=None):
 
 @pytest.fixture
 def plugin_env(lv, monkeypatch):
-    from localvoice import cli, tts_client
+    from localvoice_ai import cli, tts_client
     spawned, said = [], []
     monkeypatch.setattr(cli, "_spawn_listener", lambda: spawned.append(1) or True)
     monkeypatch.setattr(tts_client, "speak", lambda t: said.append(t))
     monkeypatch.setattr(tts_client, "stop", lambda: None)
-    monkeypatch.delenv("LOCALVOICE_DISABLE", raising=False)
+    monkeypatch.delenv("LOCALVOICE_AI_DISABLE", raising=False)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ATTENDED", "1")
     monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "cli")
     monkeypatch.setenv("TMUX_PANE", "%9")
@@ -183,11 +183,11 @@ def plugin_env(lv, monkeypatch):
 
 
 def test_plugin_enables_session_by_itself(plugin_env):
-    from localvoice import sessions
+    from localvoice_ai import sessions
     cli, spawned, said = plugin_env
     _hook(cli, "claude-start")
     s = sessions.get("s1")
-    assert s and s["sink"] == "tmux" and s["target"] == "%9" and spawned          # no /localvoice needed
+    assert s and s["sink"] == "tmux" and s["target"] == "%9" and spawned          # no /localvoice-ai needed
     _hook(cli, "claude-stop", payload={"session_id": "s1", "last_assistant_message": "All done."})
     assert said == ["All done."]
     _hook(cli, "claude-end")
@@ -195,28 +195,28 @@ def test_plugin_enables_session_by_itself(plugin_env):
 
 
 def test_plugin_enables_lazily_on_first_prompt(plugin_env):
-    from localvoice import sessions
+    from localvoice_ai import sessions
     cli, spawned, _ = plugin_env
     _hook(cli, "claude-prompt")                      # plugin installed mid-session: SessionStart never ran
     assert sessions.get("s1") and spawned
 
 
 def test_plugin_skips_scripted_and_opted_out_sessions(plugin_env, monkeypatch):
-    from localvoice import sessions, config
+    from localvoice_ai import sessions, config
     cli, spawned, _ = plugin_env
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ATTENDED", "0")
     _hook(cli, "claude-start", sid="scripted")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ATTENDED", "1")
-    monkeypatch.setenv("LOCALVOICE_DISABLE", "1")
+    monkeypatch.setenv("LOCALVOICE_AI_DISABLE", "1")
     _hook(cli, "claude-start", sid="optout")
-    monkeypatch.delenv("LOCALVOICE_DISABLE")
-    config.write_state(".off", "1")                  # after `localvoice stop` it stays off
+    monkeypatch.delenv("LOCALVOICE_AI_DISABLE")
+    config.write_state(".off", "1")                  # after `localvoice-ai stop` it stays off
     _hook(cli, "claude-start", sid="stopped")
     assert sessions.all() == [] and not spawned
 
 
 def test_default_model_is_the_big_one():
-    from localvoice import config, stt
+    from localvoice_ai import config, stt
     cfg = config.DEFAULTS
     assert cfg["stt_model"] == "big"
     assert stt.model_name(cfg, "faster") == "large-v3-turbo"

@@ -48,7 +48,7 @@ def ensure_server():
     try:
         if got:
             log = open(config.path("tts.log"), "ab")
-            subprocess.Popen([sys.executable, "-m", "localvoice.tts_server"], stdout=log, stderr=log,
+            subprocess.Popen([sys.executable, "-m", "localvoice_ai.tts_server"], stdout=log, stderr=log,
                              stdin=subprocess.DEVNULL, **platform_.detach_kwargs())
         for _ in range(240):                                   # model load can take a while on a slow disk
             if running():

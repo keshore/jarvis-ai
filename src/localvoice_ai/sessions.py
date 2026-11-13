@@ -64,7 +64,7 @@ def detect(session, sink="", target="", app=""):
     elif sink == "tmux":
         target = target or tmux
     elif sink == "keystroke":
-        app = app or platform_.front_app()      # the app you just typed /localvoice into is in front
+        app = app or platform_.front_app()      # the app you just typed /localvoice-ai into is in front
     return {"id": session, "sink": sink, "target": target, "app": app, "term": iterm, "created": time.time()}
 
 

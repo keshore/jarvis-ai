@@ -1,4 +1,4 @@
-"""Universal CLI adapter (macOS / Linux): `localvoice run -- <any command>`.
+"""Universal CLI adapter (macOS / Linux): `localvoice-ai run -- <any command>`.
 
 Runs any interactive CLI agent (codex, aider, gemini, copilot, ollama run, a REPL...) inside a pseudo-terminal that
 passes your keyboard through unchanged. Your spoken sentences are typed into it, and when the program goes quiet
