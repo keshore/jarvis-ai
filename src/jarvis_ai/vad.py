@@ -56,10 +56,12 @@ class Segmenter:
     (probabilities in between keep it going, so a short dip inside a word does not cut the sentence)."""
 
     def __init__(self, start=0.6, end=0.35, end_silence=0.65, min_speech=0.4, pre_roll=0.3, max_utt=30.0,
-                 start_blocks=3, block=BLOCK, sr=SR):
+                 start_blocks=3, block=BLOCK, sr=SR, end_silence_short=None, short=1.2):
         self.start, self.end, self.start_blocks = start, end, start_blocks
         self.bs = block / sr
         self.end_silence, self.min_speech, self.max_utt = end_silence, min_speech, max_utt
+        # a short command ("stop") ends quickly; once you are into a sentence, pauses to think are allowed to be longer
+        self.end_silence_short, self.short = (end_silence if end_silence_short is None else min(end_silence_short, end_silence)), short
         self._pre = collections.deque(maxlen=int(pre_roll / self.bs) + start_blocks)
         self.reset()
 
@@ -83,9 +85,10 @@ class Segmenter:
         self._buf.append(block)
         self._quiet = self._quiet + 1 if p < self.end else 0
         dur = len(self._buf) * self.bs
-        if self._quiet * self.bs < self.end_silence and dur < self.max_utt:
-            return None
         speech = dur - self._quiet * self.bs
+        wait = self.end_silence_short if speech < self.short else self.end_silence
+        if self._quiet * self.bs < wait and dur < self.max_utt:
+            return None
         audio = np.concatenate(self._buf)
         self.reset()
         return audio if speech >= self.min_speech else None

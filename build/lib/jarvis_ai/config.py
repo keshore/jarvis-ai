@@ -31,7 +31,7 @@ DEFAULTS = {
     "stt_model": "big",               # Whisper large-v3-turbo. (Weak CPU? set an explicit smaller name, e.g. "small.en")
     "language": "en",
     # --- text to speech (Kokoro, runs on any CPU) ---
-    "voice": "af_heart",
+    "voice": "bm_george",
     "speed": 1.05,
     # --- where your speech goes when no session is registered ---
     "sink": "auto",                   # auto | iterm | tmux | keystroke | pty | exec | llm | stdout
@@ -41,7 +41,8 @@ DEFAULTS = {
     "vad": "silero",                  # silero (neural, recommended) | volume (plain loudness gate)
     "vad_start": 0.6,                 # speech probability needed to start an utterance
     "vad_end": 0.35,                  # below this for end_silence seconds ends it
-    "end_silence": 0.65,              # seconds of quiet that ends an utterance
+    "end_silence": 1.1,               # seconds of quiet that ends a sentence. Speak slowly or pause to think? raise it (1.5 to 2)
+    "end_silence_short": 0.6,         # ... for something very short like "stop", so commands stay quick
     "min_threshold": 0.02,            # volume floor (fallback gate, and level check for barge-in)
     "max_threshold": 0.06,            # ceiling: a noisy moment at startup must not make you inaudible
     "echo_cancel": "auto",            # auto (WebRTC AEC if installed: pip install jarvis-ai[aec]) | off
@@ -70,7 +71,7 @@ DEFAULTS = {
     "confirm_agent": "always",        # always: Jarvis asks "shall I ask Claude?" and waits for your yes | never: it passes things on directly
     "persona": "",                    # Jarvis's character in one line; empty = calm, dry-witted British assistant
     "call_me": "",                    # what Jarvis calls you now and then, e.g. "sir" or your name
-    "jarvis_voice": "bm_george",      # the voice Jarvis uses for its own words; replies read from the agent keep `voice`
+    "jarvis_voice": "",               # a different Kokoro voice for Jarvis's own words; empty = one voice for everything (`voice`)
     "open_cmd": "claude",             # "Jarvis, open a session in <project>": the agent to start there
     "project_dirs": [],               # folders that hold your projects; empty = common ones (~/src, ~/code ...) and those of open sessions
     "discover": True,                 # find agent sessions and read their replies without a plugin (Claude Code today)

@@ -402,6 +402,7 @@ one" mean the agent's most recent reply unless they say "previous" or "earlier".
 In every other case reply with exactly the single word ASK. That includes: the answer is not in the conversation, you are not
 sure, it needs new work, code changes, running something, checking files, or an opinion or advice the conversation does not contain.
 Never guess. Never invent file names, numbers or results.
+Do not use your own knowledge of the world: it is out of date. If the conversation says something, that is what is true.
 Speak directly to them as "you". Never describe what they are asking or what you are about to do: just say the answer.
 What "this project" is comes from the project's README, not from what was discussed."""
 
@@ -443,6 +444,13 @@ ABOUT_ME = ("I'm Jarvis. I listen, answer what I can from your sessions, and pas
             "With your permission, naturally.")
 
 
+_IN_HISTORY = re.compile(r"\b(history|already|earlier|before|previous(?:ly)?|you (?:have|know|said|told|just)|(?:it|claude|he|she) (?:said|told|answered|explained)|"
+                         r"in the (?:chat|conversation|session|log)|scroll)\b", re.I)
+
+
+_PROJECTY = re.compile(r"\b(project|repo|repository|codebase|code base|app|application|product|tool|readme)\b", re.I)
+
+
 def bare(text):
     """The sentence without politeness in front: 'can you please summarize that' -> 'summarize that'."""
     return _POLITE.sub("", text.strip())
@@ -482,7 +490,7 @@ def _memory(memory):
     return "".join(f"They said: {q}\nYou said: {a}\n" for q, a in (memory or [])[-3:])
 
 
-def talk(text, s, cfg, speak=None, memory=None):
+def talk(text, s, cfg, speak=None, memory=None, deep=False):
     """What Jarvis does with a sentence said to it. Returns ("say", words) when Jarvis answers itself (small talk, or from the
     conversation), or ("agent", "") when the agent is needed. Work orders never reach the model: they are the agent's."""
     from . import llm
@@ -491,8 +499,9 @@ def talk(text, s, cfg, speak=None, memory=None):
         return "agent", ""
     if _WHO.match(t):                                       # about itself: fixed words, so it never misdescribes what it can do
         return "say", ABOUT_ME.format(agent=agent_label(s))
-    ctx = agents.claude_context(s["transcript"], int(cfg.get("answer_context_chars", 12000))) if s and s.get("transcript") else ""
-    notes = project_notes(s)
+    room = int(cfg.get("answer_context_chars", 4000)) * (2 if deep else 1)
+    ctx = agents.claude_context(s["transcript"], room, query=t) if s and s.get("transcript") else ""
+    notes = project_notes(s, 2500) if _PROJECTY.search(t) or len(ctx) < 80 else ""       # the README only when it is asked about: a long prompt is a slow answer
     if notes:                                              # so "what is this project about?" can be answered before the agent said anything
         ctx = f"(The project's own README, for background:)\n{notes}\n\n(The conversation:)\n{ctx or '(nothing yet)'}"
     question, mem = looks_like_question(text), _memory(memory)
@@ -522,7 +531,7 @@ def talk(text, s, cfg, speak=None, memory=None):
         return words
 
     # obvious small talk: chat. A question: the conversation first, small talk only if that has no answer. Anything else: chat or the agent.
-    steps = (chat,) if small else (answer, chat) if question else (chat,)
+    steps = (answer,) if deep else (chat,) if small else (answer, chat) if question else (chat,)
     for step in steps:
         words = step()
         if words:

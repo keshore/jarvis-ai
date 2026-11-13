@@ -151,8 +151,14 @@ def _claude_text(msg):
     return "\n".join(b.get("text", "") for b in c or [] if isinstance(b, dict) and b.get("type") == "text").strip()
 
 
-def claude_context(path, max_chars=7000, max_bytes=400_000):
-    """The recent conversation of a session as plain text ("You: ..." / "Agent: ..."), newest kept when it is too long.
+_COMMON = set("about after again also been before could does from have just like more much need only other please really said should some tell than that "
+              "their them then there these they this those what when where which while will with would your history earlier previous response reply "
+              "answer explain summarize summary project".split())
+
+
+def claude_context(path, max_chars=7000, max_bytes=3_000_000, query=""):
+    """The conversation of a session as plain text ("You: ..." / "Agent: ..."). When it is too long, the newest turns are kept,
+    and with a `query` also the older turns that mention its distinctive words ("... Donald Trump from the history").
     Only what the two of you wrote: tool calls, tool output and sub-agents are left out."""
     try:
         size = os.path.getsize(path)
@@ -173,15 +179,37 @@ def claude_context(path, max_chars=7000, max_bytes=400_000):
         if not text or text.lstrip().startswith("<"):       # system reminders, command wrappers, hook output
             continue
         turns.append(("You: " if d["type"] == "user" else "Agent: ") + text.strip())
-    out, total = [], 0
-    for t in reversed(turns):
-        if total + len(t) > max_chars:
-            if not out:
-                out.append(t[-max_chars:])
+    keys = {w for w in re.findall(r"[a-z0-9]{4,}", query.lower())} - _COMMON
+    keep, total = set(), 0
+    if keys:                                               # older turns that talk about what was asked: up to half the room
+        scored = sorted(((sum(1 for k in keys if k in t.lower()), i) for i, t in enumerate(turns)), reverse=True)
+        for score, i in scored:
+            if score == 0 or total + min(len(turns[i]), 3000) > max_chars // 2:
+                break
+            keep.add(i)
+            total += min(len(turns[i]), 3000)
+    hits = set(keep)
+    cap = {}
+    for i in range(len(turns) - 1, -1, -1):                # then the newest turns; all but the latest reply are shortened
+        if i in keep:
+            continue
+        cap[i] = 3000 if i >= len(turns) - 2 else 1200
+        size = min(len(turns[i]), cap[i])
+        if total + size > max_chars:
+            if not keep:
+                cap[i] = max_chars
+                keep.add(i)
             break
-        out.append(t)
-        total += len(t)
-    return "\n\n".join(reversed(out))
+        keep.add(i)
+        total += size
+    out, last = [], None
+    for i in sorted(keep):
+        if last is not None and i != last + 1:
+            out.append("(... older parts left out ...)")
+        limit = 3000 if i in hits else cap.get(i, 3000)
+        out.append(turns[i] if len(turns[i]) <= limit else turns[i][:limit] + " ...")
+        last = i
+    return "\n\n".join(out)
 
 
 def claude_replies(path, n=6, max_bytes=1_500_000):

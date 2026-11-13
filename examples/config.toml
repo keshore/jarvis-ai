@@ -4,6 +4,6 @@ voice = "bm_george"         # Kokoro voices: af_heart af_bella af_nicole am_mich
 speed = 1.05
 sink = "iterm"              # iterm | tmux | keystroke | exec | stdout
 mode = "brief"              # automatic speech: brief | full
-end_silence = 0.65
+end_silence = 1.1
 # exec_cmd = "ollama run llama3.2"     # sink = "exec": text on stdin, reply is printed and spoken
 # app = "Google Chrome"                # sink = "keystroke": bring this app to front before typing

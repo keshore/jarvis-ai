@@ -165,6 +165,7 @@ Each sentence waits for the model first (about a second on a 3 to 4B model), so 
 
 | Key | Default | Use |
 |---|---|---|
+| `end_silence`, `end_silence_short` | 1.1, 0.6 | how long a pause ends a sentence (raise to 1.5 to 2 if you speak slowly or pause to think), and the shorter wait after a one-word command |
 | `wake_word` | none | e.g. `"hey claude"`: ignore everything until you say it, then stay awake for `wake_window` seconds |
 | `stt_model` | big (large-v3-turbo) | on a slow CPU set a smaller one such as `"small.en"` |
 | `vad` | silero | `silero` (neural speech detector, recommended) or `volume` (plain loudness gate) |

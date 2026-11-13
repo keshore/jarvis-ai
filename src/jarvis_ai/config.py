@@ -41,7 +41,8 @@ DEFAULTS = {
     "vad": "silero",                  # silero (neural, recommended) | volume (plain loudness gate)
     "vad_start": 0.6,                 # speech probability needed to start an utterance
     "vad_end": 0.35,                  # below this for end_silence seconds ends it
-    "end_silence": 0.65,              # seconds of quiet that ends an utterance
+    "end_silence": 1.1,               # seconds of quiet that ends a sentence. Speak slowly or pause to think? raise it (1.5 to 2)
+    "end_silence_short": 0.6,         # ... for something very short like "stop", so commands stay quick
     "min_threshold": 0.02,            # volume floor (fallback gate, and level check for barge-in)
     "max_threshold": 0.06,            # ceiling: a noisy moment at startup must not make you inaudible
     "echo_cancel": "auto",            # auto (WebRTC AEC if installed: pip install jarvis-ai[aec]) | off

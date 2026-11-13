@@ -177,7 +177,7 @@ def main():
 
         recent = collections.deque(maxlen=int(2.0 * SR / BLOCK))      # ~2 s of the latest audio
         seg = vad.Segmenter(start=float(cfg["vad_start"]), end=float(cfg["vad_end"]), end_silence=end_silence,
-                            min_speech=MIN_SPEECH, pre_roll=PRE_ROLL, max_utt=MAX_UTT)
+                            min_speech=MIN_SPEECH, pre_roll=PRE_ROLL, max_utt=MAX_UTT, end_silence_short=float(cfg.get("end_silence_short", end_silence)))
         detector = vad.make(cfg, thr)
         ec = aec.make(cfg)
         timeline = aec.RefTimeline() if ec else None
@@ -265,7 +265,7 @@ def main():
                 fr = STATE.pop("fragment", None)
                 if fr and time.time() - fr[1] < 12:              # the rest of a sentence you paused in
                     text = fr[0] + " " + text
-                if jarvis.dangling(text) and not STATE.get("pending"):
+                if jarvis.dangling(text):
                     STATE["fragment"] = (re.sub(r"[.\u2026\s]+$", "", text), time.time())
                     print(f"> {text}   (waiting for the rest)", flush=True)
                     continue
@@ -306,6 +306,16 @@ def main():
                 if gate._NO.match(text.lower().strip()):
                     print(f"> {text}   [no]", flush=True)
                     tts_client.speak("Very well.", JV())
+                    continue
+                if jarvis._IN_HISTORY.search(text):               # "but it's already in the history": look harder before asking again
+                    print(f"> {text}   [looking again in the conversation]", flush=True)
+                    kind, words = jarvis.talk(pend[0], sessions.get(key), cfg, lambda s: tts_client.speak(s, JV()), None, deep=True)
+                    if kind == "say":
+                        print(f"  (Jarvis: {words})", flush=True)
+                        tts_client.speak(words, JV())
+                    else:
+                        STATE["pending"] = (pend[0], pend[1], time.time() + 25, pend[3])
+                        tts_client.speak("I can't find that in what I've seen. Shall I ask?", JV())
                     continue
                 if len(text.split()) <= 4 and not textprep.classify(text) and pend[3] < 2:
                     # a short reply that is neither yes nor no: do not treat it as a new request, ask once more

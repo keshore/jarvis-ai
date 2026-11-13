@@ -97,3 +97,21 @@ def test_silero_ignores_noise():
     rng = np.random.default_rng(1)
     p = [d.prob((rng.standard_normal(B) * 0.08).astype(np.float32)) for _ in range(60)]
     assert max(p) < 0.5                                                  # loud white noise is not speech
+
+
+def test_a_pause_inside_a_sentence_is_allowed_but_a_short_command_ends_quickly():
+    import numpy as np
+    from jarvis_ai import vad
+    bs = vad.BLOCK / vad.SR
+    blk = np.zeros(vad.BLOCK, np.float32)
+
+    def run(pattern):                                   # pattern: list of (seconds, speech?)  -> number of utterances
+        seg = vad.Segmenter(end_silence=1.1, end_silence_short=0.6, min_speech=0.2)
+        n = 0
+        for secs, speech in pattern:
+            for _ in range(int(secs / bs)):
+                n += seg.push(blk, 0.9 if speech else 0.0) is not None
+        return n
+    assert run([(2.5, True), (0.9, False), (2.0, True), (1.3, False)]) == 1      # 0.9 s thinking pause mid-sentence: one sentence
+    assert run([(2.5, True), (1.3, False), (2.0, True), (1.3, False)]) == 2      # a real stop
+    assert run([(0.6, True), (0.7, False)]) == 1                                 # "stop": done after 0.6 s, no long wait

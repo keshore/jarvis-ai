@@ -75,3 +75,16 @@ def test_a_session_in_any_other_app_is_reached_through_that_app(tmp_path, monkey
     assert (s["sink"], s["app"]) == ("keystroke", "Code")
     monkeypatch.setattr(agents, "app_of", lambda pid: "")
     assert agents.claude_sessions(iterm={}, tmux={})[0]["sink"] == ""
+
+
+def test_context_reaches_back_for_what_was_asked_about(tmp_path):
+    p = tmp_path / "c.jsonl"
+    turns = [("user", "who is the president"), ("assistant", "Donald Trump is the President. He began his second term in 2025.")]
+    for i in range(12):
+        turns += [("user", f"question {i}"), ("assistant", f"Filler reply number {i}. " + "Nothing relevant here. " * 30)]
+    p.write_text("".join(json.dumps({"type": k, "message": {"content": [{"type": "text", "text": t}]}}) + "\n" for k, t in turns))
+    recent = agents.claude_context(str(p), 2500)
+    assert "Trump" not in recent and "number 11" in recent                     # plain: only the newest fits
+    found = agents.claude_context(str(p), 2500, query="tell me about Donald Trump from the history")
+    assert "second term in 2025" in found and "number 11" in found and "older parts left out" in found
+    assert found.index("Trump") < found.index("number 11")                      # still in order
