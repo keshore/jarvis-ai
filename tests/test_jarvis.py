@@ -315,3 +315,9 @@ def test_narrating_instead_of_answering_is_rejected(tmp_path, monkeypatch):
 def test_a_leading_no_or_yes_does_not_hide_a_question(tmp_path, monkeypatch):
     calls = script(monkeypatch, ["The import matched staff only by Emp ID."])
     assert jarvis.talk("No, please tell me about the upload", convo(tmp_path), TCFG)[0] == "say" and "CONVERSATION" in calls[0][1]["content"]
+
+
+def test_jarvis_describes_itself_with_fixed_words(tmp_path, monkeypatch):
+    calls = script(monkeypatch, [])
+    kind, words = jarvis.talk("What are you?", convo(tmp_path), TCFG)
+    assert kind == "say" and "I'm Jarvis" in words and "Claude" in words and calls == []
