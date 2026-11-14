@@ -1,8 +1,0 @@
-{
-  "hooks": {
-    "SessionStart":     [{ "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/lv\" hook claude-start",  "async": true }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/lv\" hook claude-prompt" }] }],
-    "Stop":             [{ "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/lv\" hook claude-stop",   "async": true }] }],
-    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/lv\" hook claude-end" }] }]
-  }
-}

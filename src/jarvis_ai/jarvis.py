@@ -26,8 +26,8 @@ def sync():
     for d in found:
         s = sessions.get(d["id"]) or {"id": d["id"], "created": time.time()}
         s.update(agent=d["agent"], pid=d["pid"], name=d["name"], cwd=d["cwd"], transcript=d["transcript"], busy=d["busy"])
-        if not s.get("hooks") or not s.get("sink") or s.get("sink") == "none":
-            s.update(sink=d["sink"] or "none", target=d["target"], term=d["term"], app=d.get("app", ""))
+        s.pop("hooks", None)                               # left by the plugin that older versions had
+        s.update(sink=d["sink"] or "none", target=d["target"], term=d["term"], app=d.get("app", ""))
         sessions.register(s)
     if found or os.path.isdir(os.path.join(agents.claude_home(), "sessions")):
         live = {d["id"] for d in found}
@@ -38,7 +38,7 @@ def sync():
 
 
 class Watcher(threading.Thread):
-    """Keeps the registry current and speaks finished replies of sessions that have no hooks (no plugin needed)."""
+    """Keeps the registry current and speaks finished replies read from the agents' transcripts."""
 
     def __init__(self, cfg, speak, interval=1.0, announce=None):
         super().__init__(daemon=True)
@@ -50,8 +50,8 @@ class Watcher(threading.Thread):
             sync()
         self._n += 1
         for s in sessions.all():
-            if s.get("hooks") or not s.get("transcript"):
-                continue                                   # the plugin's Stop hook already reads this one
+            if not s.get("transcript"):
+                continue
             t = self.tails.get(s["id"])
             if t is None or t.path != s["transcript"]:
                 t = self.tails[s["id"]] = agents.Tail(s["transcript"])

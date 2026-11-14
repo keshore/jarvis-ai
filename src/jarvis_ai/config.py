@@ -51,7 +51,6 @@ DEFAULTS = {
     "barge_ratio": 2.2,               # how much louder than the echo you must be
     "wake_word": "",                  # e.g. "hey claude": ignore speech until you say it (then stay awake)
     "wake_window": 30,                # seconds you can keep talking after the wake word
-    "autostart": True,                # the Claude Code plugin enables voice by itself when a session starts
     "focus_follows": True,            # speech goes to the session you are looking at; only it speaks
     "app": "",                        # sink=keystroke: app to bring to front before typing
     # --- optional local LLM (summaries, chat sink). Nothing breaks without it. ---
@@ -75,7 +74,7 @@ DEFAULTS = {
     "open_cmd": "claude",             # "Jarvis, open a session in <project>": the agent to start there
     "project_dirs": [],               # folders that hold your projects; empty = common ones (~/src, ~/code ...) and those of open sessions
     "announce": True,                 # say "<session> has finished." when a session you are not looking at finishes (its reply is saved, not read)
-    "discover": True,                 # find agent sessions and read their replies without a plugin (Claude Code today)
+    "discover": True,                 # find agent sessions and read their replies (Claude Code today)
     "approval": "dialog",             # how you approve actions taken for you: dialog (a window you click, default) | voice (say yes; weaker)
     "frontend": "commands",           # off | commands (understand loose spoken commands) | assistant (the local LLM sees every sentence; see README)
     "frontend_timeout": 6,            # seconds the local model gets before your sentence is simply forwarded

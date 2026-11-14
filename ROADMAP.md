@@ -4,11 +4,11 @@ Nothing below is released yet: everything since 0.3.1 lives on `main` and ships 
 
 **Built**
 - Ears and voice: Whisper, Kokoro, neural voice detection, echo cancellation, barge-in.
-- Sessions found without a plugin (Claude Code), replies read from transcripts, any terminal or app on macOS, tmux anywhere.
+- Sessions found by themselves (Claude Code), replies read from transcripts, any terminal or app on macOS, tmux anywhere.
 - "Jarvis, ..." commands: list, switch, status, read, ask (with approval), open a session (with approval).
 - Loose wording through an optional local model (MLX, Ollama, any OpenAI-compatible server), checked by plain code.
 - Approval gate with an audit log. The model proposes; only you approve.
-- Announcements when a background session finishes; start at login (`jarvis-ai login on`); MCP server (`jarvis-ai mcp`).
+- Announcements when a background session finishes; start at login (`jarvis-ai login on`).
 
 **Next**
 1. Connectors for more agents (Codex, Gemini CLI, Copilot CLI) and for the Claude desktop app's own sessions.

@@ -63,29 +63,6 @@ def test_last_reply_roundtrip(lv):
     assert textprep.load_last("k") == "hello"
 
 
-def test_hook_json_extracts_reply(lv, monkeypatch):
-    from jarvis_ai import cli, tts_client, textprep
-    said = []
-    monkeypatch.setattr(tts_client, "speak", lambda t: said.append(t))
-    a = type("A", (), {"payload": json.dumps({"type": "agent-turn-complete", "last-assistant-message": "All done here."}),
-                       "field": None, "session": None})()
-    cli._hook_json(a)
-    assert said == ["All done here."] and textprep.load_last("default") == "All done here."
-    said.clear()
-    a.payload, a.field = json.dumps({"a": {"b": "nested reply"}}), "a.b"
-    cli._hook_json(a)
-    assert said == ["nested reply."]
-
-
-def test_hook_json_respects_session_gate(lv, monkeypatch):
-    from jarvis_ai import cli, tts_client
-    said = []
-    monkeypatch.setattr(tts_client, "speak", lambda t: said.append(t))
-    a = type("A", (), {"payload": '{"message": "hi"}', "field": None, "session": "not-enabled"})()
-    cli._hook_json(a)
-    assert said == []
-
-
 def test_stt_aliases():
     from jarvis_ai import stt
     assert stt.model_name({"stt_model": "small", "language": "en"}, "faster") == "small.en"
@@ -161,60 +138,6 @@ def test_pty_wrapper_end_to_end(lv, monkeypatch, tmp_path):
     assert "REPLY TO: hello world" in out
 
 
-def _hook(cli, event, sid="s1", payload=None):
-    import argparse
-    p = json.dumps(payload or {"session_id": sid})
-    cli.cmd_hook(argparse.Namespace(event=event, payload=p, field=None, session=None))
-
-
-@pytest.fixture
-def plugin_env(lv, monkeypatch):
-    from jarvis_ai import cli, tts_client
-    spawned, said = [], []
-    monkeypatch.setattr(cli, "_spawn_listener", lambda: spawned.append(1) or True)
-    monkeypatch.setattr(tts_client, "speak", lambda t: said.append(t))
-    monkeypatch.setattr(tts_client, "stop", lambda: None)
-    monkeypatch.delenv("JARVIS_AI_DISABLE", raising=False)
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ATTENDED", "1")
-    monkeypatch.setenv("CLAUDE_CODE_ENTRYPOINT", "cli")
-    monkeypatch.setenv("TMUX_PANE", "%9")
-    monkeypatch.delenv("ITERM_SESSION_ID", raising=False)
-    return cli, spawned, said
-
-
-def test_plugin_enables_session_by_itself(plugin_env):
-    from jarvis_ai import sessions
-    cli, spawned, said = plugin_env
-    _hook(cli, "claude-start")
-    s = sessions.get("s1")
-    assert s and s["sink"] == "tmux" and s["target"] == "%9" and spawned          # no /jarvis-ai needed
-    _hook(cli, "claude-stop", payload={"session_id": "s1", "last_assistant_message": "All done."})
-    assert said == ["All done."]
-    _hook(cli, "claude-end")
-    assert sessions.get("s1") is None
-
-
-def test_plugin_enables_lazily_on_first_prompt(plugin_env):
-    from jarvis_ai import sessions
-    cli, spawned, _ = plugin_env
-    _hook(cli, "claude-prompt")                      # plugin installed mid-session: SessionStart never ran
-    assert sessions.get("s1") and spawned
-
-
-def test_plugin_skips_scripted_and_opted_out_sessions(plugin_env, monkeypatch):
-    from jarvis_ai import sessions, config
-    cli, spawned, _ = plugin_env
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ATTENDED", "0")
-    _hook(cli, "claude-start", sid="scripted")
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ATTENDED", "1")
-    monkeypatch.setenv("JARVIS_AI_DISABLE", "1")
-    _hook(cli, "claude-start", sid="optout")
-    monkeypatch.delenv("JARVIS_AI_DISABLE")
-    config.write_state(".off", "1")                  # after `jarvis-ai stop` it stays off
-    _hook(cli, "claude-start", sid="stopped")
-    assert sessions.all() == [] and not spawned
-
-
 def test_default_model_is_the_big_one():
     from jarvis_ai import config, stt
     cfg = config.DEFAULTS
@@ -238,7 +161,7 @@ def test_cli_help_hides_plumbing_and_suggests(capsys, monkeypatch):
     assert "setup" in str(e.value) and "status" in str(e.value)
 
 
-def test_stale_hook_sessions_are_forgotten(tmp_path, monkeypatch):
+def test_stale_sessions_are_forgotten(tmp_path, monkeypatch):
     monkeypatch.setenv("JARVIS_AI_HOME", str(tmp_path))
     from jarvis_ai import sessions
     sessions.register({"id": "old", "sink": "iterm", "target": "T", "created": time.time() - 13 * 3600})

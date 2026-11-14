@@ -12,7 +12,7 @@ models. What you say and what the AI says back never leave your computer.
 - **Talk, don't type.** Your speech is typed into the session you are looking at.
 - **Hear the answer your way.** Brief by default. Say *"read it all"* for the whole reply, *"summarize that"* for a summary.
 - **Call it by name.** *"Jarvis, what's open?"*, *"Jarvis, switch to the portal session"*, *"Jarvis, ask the portal session to run the tests"*.
-- **No plugin needed.** It finds your AI sessions by itself and reads their replies from the agents' own transcripts.
+- **Nothing to install into your agent.** It finds your AI sessions by itself and reads their replies from the agents' own transcripts.
 - **Nothing happens behind your back.** You see the real session. Anything Jarvis would type on its own needs your click on an approval window first.
 - **Talk over it.** Start speaking and it stops and listens (barge-in). Reliable on speakers too with the optional echo cancellation.
 - **Any local LLM, or none.** MLX, Ollama, or any OpenAI-compatible server (llama.cpp, LM Studio, vLLM) understands loosely worded requests. Without one, fixed phrases still work.
@@ -40,15 +40,7 @@ git clone https://github.com/keshore/jarvis-ai && cd jarvis-ai && ./install.sh
 **2. Start it:** `jarvis-ai on`. It finds running Claude Code sessions by itself, in any terminal or app. In iTerm2 and tmux it reaches the exact tab or pane; in any
 other app on macOS (Terminal, VS Code, Warp, Ghostty ...) it works through that app's window; elsewhere it types into the window in front. `jarvis-ai off` stops it.
 
-**Optional: the Claude Code plugin** starts and stops voice together with your sessions, so you never run `on` / `off`
-(Claude Code 2.1.275 or later):
-
-```
-/plugin marketplace add keshore/jarvis-ai
-/plugin install jarvis-ai@jarvis-ai
-```
-
-**Start at login** (no plugin needed): `jarvis-ai login on`. It writes one per-user file (a LaunchAgent on macOS, an autostart entry
+**Start at login:** `jarvis-ai login on`. It writes one per-user file (a LaunchAgent on macOS, an autostart entry
 on Linux, a Startup script on Windows) and respects `jarvis-ai off`. `jarvis-ai login off` removes it. Written and tested as a file;
 not yet verified across a real logout and login.
 
@@ -69,7 +61,7 @@ Just talk. Say **"stop"** to silence the voice and **"interrupt"** to stop the A
 | "read it all" / "read everything" | reads the whole last reply |
 | "summarize that" / "give me the summary" | reads a short version (uses the local LLM if you have one) |
 | "read everything from now on" / "summaries only from now on" | sets the default for every reply |
-| "read the clipboard" / "summarize the clipboard" | reads what you copied (for apps with no hook) |
+| "read the clipboard" / "summarize the clipboard" | reads what you copied (for apps Jarvis cannot read) |
 | "stop" | silences the voice |
 | "interrupt" / "cancel that" | silences it and presses Escape in the AI |
 
@@ -135,9 +127,7 @@ reads its reply aloud. When a background session finishes, Jarvis says only "<se
 | You want | Use |
 |---|---|
 | Read any command's output aloud | `some-agent ... \| jarvis-ai speak` |
-| A tool with a hook or notify command that sends JSON | `jarvis-ai hook json` (Codex: `notify = ["jarvis-ai", "hook", "json"]` in `~/.codex/config.toml`; unverified) |
-| Any interactive CLI, no hooks needed | `jarvis-ai run -- aider` (voice in and out; macOS, Linux, WSL) |
-| An agent that speaks MCP | add the stdio server `jarvis-ai mcp`; it offers `speak` and `stop_speaking`, nothing that types or approves (Claude Code: `claude mcp add jarvis -- jarvis-ai mcp`) |
+| Any interactive CLI | `jarvis-ai run -- aider` (voice in and out; macOS, Linux, WSL) |
 | A desktop or browser chat window | speech is typed into the focused window (`keystroke` sink); copy a reply and say "read the clipboard" |
 | Talk to a local model directly | `jarvis-ai on --sink llm` (needs the optional LLM) |
 
@@ -179,7 +169,7 @@ Each sentence waits for the model first (about a second on a 3 to 4B model), so 
 | `barge_ratio` | 2.2 | only without echo cancellation: how much louder than the echo you must be to interrupt |
 | `name` | jarvis | the word that addresses the assistant itself; `""` turns that off |
 | `open_cmd`, `project_dirs` | claude, common folders | what "open a session" starts, and where your projects live |
-| `discover` | true | find agent sessions and read their replies without a plugin |
+| `discover` | true | find agent sessions and read their replies |
 | `approval` | dialog | `dialog` (click to approve) or `voice` (say yes; weaker) |
 | `talk_to`, `confirm_agent` | jarvis, always | talk to Jarvis first (or `agent` for plain dictation); ask before passing things to the agent |
 | `persona`, `call_me`, `jarvis_voice` | dry-witted British assistant, none, none | Jarvis's character, what it calls you, its Kokoro voice |
@@ -199,7 +189,7 @@ it and `jarvis-ai off` ends it. The voice daemon listens on `127.0.0.1` only and
 |---|---|
 | Nothing happens when I talk | `jarvis-ai status`, then read `~/.jarvis-ai/listener.log`. A line `(ignored, start with 'hey claude')` means a wake word is set. |
 | No sound | check the system volume is not muted; `jarvis-ai doctor` checks the speakers; log: `~/.jarvis-ai/tts.log` |
-| Typing by voice works but replies are silent | the plugin is not installed (`claude plugin list` should show `jarvis-ai`), or that session started before it was: start a new one. `jarvis-ai status` lists the sessions voice knows about. |
+| Typing by voice works but replies are silent | `jarvis-ai status` should list the session; if it does not, Jarvis has not found it (see Known limits). A session you are not looking at only announces that it finished. |
 | The voice interrupts itself | install the echo cancellation extra, or raise `barge_ratio` (try 3), or use headphones |
 | It does not notice me talking over it | install the echo cancellation extra (speakers feed the voice back into the mic), or use headphones; tune `aec_delay_ms` |
 | It picks up other people talking nearby | set a `wake_word`. Fans, keyboards and music are already ignored by the speech detector. |
@@ -211,10 +201,10 @@ it and `jarvis-ai off` ends it. The voice daemon listens on `127.0.0.1` only and
 - Without the echo cancellation extra, interrupting on laptop speakers relies on a loudness heuristic that can miss you. Headphones are always reliable.
 - With it, the first second or so of an interruption can be clipped, and `aec_delay_ms` is tuned on one MacBook Pro; other machines may need a different value.
 - The speech detector separates speech from noise, not one speaker from another: use a `wake_word` if people talk near you.
-- `jarvis-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen terminal UIs redraw constantly, so prefer a tool's own hook.
-- Finding sessions without a plugin reads Claude Code's own session list and transcripts. These are internal files and may change with a Claude Code update; the plugin is the fallback. Other agents use `run`, a hook or a pipe.
+- `jarvis-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen terminal UIs redraw constantly, so its output is noisy to read aloud.
+- Finding sessions reads Claude Code's own session list and transcripts. These are internal files and may change with a Claude Code update. Other agents use `run` or a pipe.
 - Picking one tab among several needs iTerm2 or tmux. In other apps Jarvis can bring the app to the front, and types into a session that is not in front only when it is the only session in that app.
-- Reading replies aloud needs a transcript (Claude Code), a hook, a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
+- Reading replies aloud needs a transcript (Claude Code), a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
   read-back there yet.
 
 ## How it works
@@ -225,7 +215,7 @@ it and `jarvis-ai off` ends it. The voice daemon listens on `127.0.0.1` only and
                                   v
                    the session you are looking at -> your AI
 
- your AI's reply -> hook / pipe / run / clipboard -> brief or full -> Kokoro voice (local) -> speakers
+ your AI's reply -> transcript / pipe / run / clipboard -> brief or full -> Kokoro voice (local) -> speakers
 ```
 
 More in the [architecture notes](https://github.com/keshore/jarvis-ai/blob/main/docs/ARCHITECTURE.md) and the

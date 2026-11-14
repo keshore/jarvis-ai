@@ -81,12 +81,12 @@ def test_ask_refuses_a_session_it_cannot_reach(home):
     assert "can't type into" in said[-1]
 
 
-def test_watcher_reads_replies_without_hooks_and_leaves_plugin_sessions_alone(home, monkeypatch):
+def test_watcher_reads_replies_and_announces_background_sessions(home, monkeypatch):
     from jarvis_ai import agents, sessions, textprep
     tr = home / "t.jsonl"
     tr.write_text("")
     reg(home, transcript=str(tr))
-    reg(home, id="s2", name="other", transcript=str(tr), hooks=True)
+    reg(home, id="s2", name="other")
     monkeypatch.setattr(jarvis, "sync", lambda: [])
     monkeypatch.setattr(sessions, "current", lambda: sessions.get("s1"))
     spoken = []

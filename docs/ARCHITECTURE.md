@@ -11,7 +11,7 @@
               v
    the session in front  -> sink: iterm | tmux | keystroke | pty | exec | llm | stdout  -> your AI (the visible, real session)
 
- your AI's reply -> transcript watcher (no plugin) | hook | pipe | `jarvis-ai run` | clipboard
+ your AI's reply -> transcript watcher | pipe | `jarvis-ai run` | clipboard
                  -> brief or full -> voice daemon (Kokoro) -> speakers
 ```
 
@@ -27,7 +27,6 @@
   (markdown to speakable text, brief or full, command recognition), `tts_server` / `tts_client` (warm Kokoro daemon on a
   token-protected loopback socket, in-process playback via sounddevice), `sessions` (registry + router), `agents` (connectors), `jarvis` (commands by name, watcher), `intent`, `gate`, `sinks`, `ptyrun`
   (universal CLI wrapper), `llm` (optional: mlx, Ollama or an OpenAI-compatible server), `platform_` (every OS difference in one file), `config`, `cli`.
-- **Adapters** (`adapters/*`): thin glue per tool. `adapters/claude-code` is an optional Claude Code plugin (hooks only): it starts and stops voice with your sessions.
 - **State** (`~/.jarvis-ai`): `config.toml`, `glossary.txt`, `sessions/*.json`, `last/<session>.md` (last reply, for "read it all"),
   `tts.port` (0600), `audit.log` (0600), `mode`, `.off`, `.paused`, logs.
 - **Voice detection:** Silero VAD (ONNX, via `pysilero-vad`) gives a speech probability per 32 ms block; `vad.Segmenter` turns that into utterances

@@ -1,12 +1,12 @@
-"""Agent connectors: how Jarvis finds, reads and reaches the AI sessions on this machine WITHOUT a plugin or hooks.
+"""Agent connectors: how Jarvis finds, reads and reaches the AI sessions on this machine. Nothing is installed into the agent.
 
 A connector answers three questions for one kind of agent:
   discover()        which sessions are alive, where they run (folder, terminal) and whether they are busy
   reply reader      the text of a finished reply (`Tail`), read from the agent's own transcript
   how to reach it   which sink types into it (iTerm tab, tmux pane; found from the session's terminal device)
 
-Connectors here: Claude Code (any OS). Any other CLI works through `jarvis-ai run -- <cmd>` (the pty connector),
-and tools with a notify command through `jarvis-ai hook json`. Everything a connector reads is DATA: it is spoken
+Connectors here: Claude Code (any OS). Any other CLI works through `jarvis-ai run -- <cmd>` (the pty connector).
+Everything a connector reads is DATA: it is spoken
 or shown, never executed and never treated as an instruction."""
 import glob, json, os, re, shutil, subprocess
 

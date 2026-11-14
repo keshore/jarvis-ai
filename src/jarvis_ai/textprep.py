@@ -158,29 +158,6 @@ def speak_text(raw, mode=None):
     return full_text(items) if (mode or get_mode()) == "full" else brief_text(items)
 
 
-def claude_hook_message(d):
-    """Last assistant message from a Claude Code Stop-hook payload (falls back to the transcript)."""
-    t = d.get("last_assistant_message") or ""
-    if t:
-        return t
-    try:
-        last = ""
-        for line in open(d.get("transcript_path", "")):
-            try:
-                m = json.loads(line)
-            except Exception:
-                continue
-            msg = m.get("message") or {}
-            if m.get("type") == "assistant" and msg.get("role") == "assistant":
-                c = msg.get("content")
-                s_ = "\n".join(b.get("text", "") for b in c if b.get("type") == "text") if isinstance(c, list) else (c or "")
-                if s_.strip():
-                    last = s_
-        return last
-    except Exception:
-        return ""
-
-
 # ---------- what the microphone picks up that is not speech to act on ----------
 JUNK = {"", "you", "thank you", "thanks", "thanks for watching", "bye", "goodbye",
         "we'll see you next time", "see you next time", "see you in the next video",

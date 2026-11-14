@@ -153,7 +153,7 @@ def main():
     if cfg.get("discover", True):
         jarvis.Watcher(cfg, lambda raw: speak_raw(raw, textprep.get_mode()),
                        announce=lambda line: tts_client.speak(line, JV())).start()
-        print("sessions: found automatically (no plugin needed); replies are read from the agents' transcripts", flush=True)
+        print("sessions: found automatically; replies are read from the agents' transcripts", flush=True)
 
     q = queue.Queue()
     def on_audio(indata, frames, tinfo, status):

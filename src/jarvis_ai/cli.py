@@ -5,7 +5,6 @@ from . import config, platform_, sessions, textprep, tts_client
 
 KOKORO_BASE = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
 KOKORO_FILES = ("kokoro-v1.0.onnx", "voices-v1.0.bin")
-JSON_KEYS = ("last_assistant_message", "last-assistant-message", "assistant_message", "message", "text", "output")
 
 
 # ---------- processes ----------
@@ -43,25 +42,6 @@ def _clear_off():
         os.unlink(config.path(".off"))
     except OSError:
         pass
-
-
-def _interactive():
-    """Voice is for sessions you sit in front of, not scripted (`claude -p`) or SDK runs."""
-    return (os.environ.get("CLAUDE_CODE_SESSION_ATTENDED", "1") not in ("0", "false")
-            and not os.environ.get("CLAUDE_CODE_ENTRYPOINT", "").startswith("sdk"))
-
-
-def _auto_enable(sid):
-    """Plugin path: register the session and make sure the listener is running. No command needed."""
-    if _off() or not config.load().get("autostart", True) or os.environ.get("JARVIS_AI_DISABLE") or not _interactive():
-        return None
-    s = sessions.get(sid)
-    if not s or not s.get("hooks"):
-        s = {**(s or {}), **sessions.detect(sid), "hooks": True}
-        sessions.register(s)
-    config.write_state("last_session", sid)
-    _spawn_listener()
-    return s
 
 
 def cmd_setup(a):
@@ -136,7 +116,7 @@ def cmd_stop(a):
 
 
 def cmd_login(a):
-    """Start at login, without the Claude Code plugin: a per-user entry that runs `jarvis-ai on` unless you turned it off."""
+    """Start at login: a per-user entry that runs `jarvis-ai on` unless you turned it off."""
     p = platform_.login_file()
     if a.state == "on":
         platform_.set_login([sys.executable, "-m", "jarvis_ai.cli", "on", "--login"])
@@ -146,11 +126,6 @@ def cmd_login(a):
         print("Jarvis no longer starts at login.")
     else:
         print(f"start at login: {'on' if os.path.exists(p) else 'off'} ({p})")
-
-
-def cmd_mcp(a):
-    from . import mcp
-    mcp.serve()
 
 
 def cmd_status(a):
@@ -182,91 +157,12 @@ def cmd_speak(a):
     if _muted() or (a.session and not sessions.get(a.session)):
         return
     raw = sys.stdin.read()
-    if a.claude_hook:
-        raw = textprep.claude_hook_message(json.loads(raw or "{}"))
     if not raw.strip():
         return
     key = a.key or a.session or config.read_state("target") or "default"
     for k in {key, key.split(":")[-1], "default"}:
         textprep.save_last(k, raw)
     tts_client.speak(textprep.speak_text(raw, a.mode))
-
-
-# ---------- sessions (used by tool adapters) ----------
-def _disable(a):
-    sessions.remove(a.session)
-    if not sessions.all() and getattr(a, "stop_when_idle", False):
-        _stop_processes()
-    print("disabled", a.session)
-
-
-def _dig(d, path):
-    for part in path.split("."):
-        d = d.get(part) if isinstance(d, dict) else None
-    return d if isinstance(d, str) else ""
-
-
-def _hook_json(a):
-    """Generic hook: any tool that can run a command with a JSON payload (stdin or last argument)."""
-    payload = a.payload or sys.stdin.read()
-    try:
-        d = json.loads(payload)
-    except ValueError:
-        d = {"text": payload}
-    raw = _dig(d, a.field) if a.field else next(
-        (d[k] for k in JSON_KEYS if isinstance(d, dict) and isinstance(d.get(k), str) and d[k].strip()), "")
-    if not raw.strip() or _muted() or (a.session and not sessions.get(a.session)):
-        return
-    for k in {a.session or "default", "default", config.read_state("target")} - {""}:
-        textprep.save_last(k, raw)
-    tts_client.speak(textprep.speak_text(raw))
-
-
-def cmd_hook(a):
-    """Entry points for tool adapters: claude-start | claude-prompt | claude-stop | claude-end | json"""
-    if a.event == "json":
-        return _hook_json(a)
-    d = json.loads(a.payload or sys.stdin.read() or "{}")
-    sid = d.get("session_id", "")
-    if not sid:
-        return
-    if a.event == "claude-end":
-        _disable(argparse.Namespace(session=sid, stop_when_idle=True))
-        return
-    if a.event == "claude-start":
-        _auto_enable(sid)
-        return
-    s = sessions.get(sid) or (_auto_enable(sid) if a.event == "claude-prompt" else None)
-    if not s:
-        return
-    if not s.get("hooks"):                                 # this session has the plugin: the transcript watcher must not read it too
-        s["hooks"] = True
-        sessions.register(s)
-    if a.event == "claude-prompt":
-        sessions.refresh(s)                                # it is in front right now: re-learn where it lives
-        config.write_state("last_session", sid)
-        if not _off():
-            _spawn_listener()                              # e.g. after a reboot or a crash
-        tts_client.stop()                                  # you are talking now: be quiet
-    elif a.event == "claude-stop":
-        s["seen"] = time.time()
-        sessions.register(s)
-        if _muted():
-            return
-        raw = textprep.claude_hook_message(d)
-        if not raw.strip():
-            return
-        for k in {sid, s.get("term", ""), s.get("target", "")} - {""}:
-            textprep.save_last(k, raw)
-        cfg = config.load()
-        if cfg.get("focus_follows", True):
-            cur = sessions.current()
-            if cur and cur["id"] != sid:                   # you are looking elsewhere: the reply is saved, only its arrival is said
-                if cfg.get("announce", True):
-                    from . import jarvis
-                    tts_client.speak(jarvis.finished_line(s), cfg.get("jarvis_voice", ""))
-                return
-        tts_client.speak(textprep.speak_text(raw))
 
 
 def cmd_run(a):
@@ -329,7 +225,6 @@ use with any tool:
   run         add voice to any interactive CLI:    jarvis-ai run -- aider
   speak       read text aloud:                     some-agent | jarvis-ai speak
               (--mode full reads everything, default is a short version)
-  mcp         MCP server for agents that speak MCP: tools `speak` and `stop_speaking`
 
 while talking, say:
   "stop" silences the voice          "interrupt" also stops the AI's turn
@@ -345,7 +240,6 @@ def _suggest(choices):
     if len(sys.argv) < 2 or sys.argv[1].startswith("-") or sys.argv[1] in choices:
         return
     w = sys.argv[1]
-    choices = [c for c in choices if c != "hook"]      # called by the plugin, not by people
     near = [c for c in choices if c.startswith(w)] or difflib.get_close_matches(w, list(choices), n=2, cutoff=0.5)
     shown = " or ".join(f"'{c}'" for c in near[:3])
     sys.exit(f"jarvis-ai: unknown command '{w}'" + (f" (did you mean {shown}?)" if near else "") + "\nrun 'jarvis-ai -h' for the commands")
@@ -369,17 +263,11 @@ def main():
     sp.add_parser("status", help="what is running, which sessions").set_defaults(f=cmd_status)
     s = sp.add_parser("login", help="start at login: on | off"); s.add_argument("state", nargs="?", choices=["on", "off", "status"], default="status")
     s.set_defaults(f=cmd_login)
-    sp.add_parser("mcp", help="MCP server (stdio) so an agent can speak").set_defaults(f=cmd_mcp)
     sp.add_parser("doctor", help="check the installation").set_defaults(f=cmd_doctor)
 
     s = sp.add_parser("speak", help="read stdin aloud (brief or full per mode)")
     s.add_argument("--mode", choices=["brief", "full"]); s.add_argument("--key"); s.add_argument("--session")
-    s.add_argument("--claude-hook", action="store_true", help="stdin is a Claude Code hook payload"); s.set_defaults(f=cmd_speak)
-    s = sp.add_parser("hook", help=argparse.SUPPRESS)
-    s.add_argument("event", choices=["claude-start", "claude-stop", "claude-prompt", "claude-end", "json"])
-    s.add_argument("payload", nargs="?", help="json event: payload as an argument (else read from stdin)")
-    s.add_argument("--field", help="json event: dotted path of the reply text (default: a few common names)")
-    s.add_argument("--session"); s.set_defaults(f=cmd_hook)
+    s.set_defaults(f=cmd_speak)
     s = sp.add_parser("run", help="run ANY interactive CLI with voice in and out")
     s.add_argument("--no-speak", action="store_true"); s.add_argument("--idle", type=float, default=1.5)
     s.add_argument("command", nargs=argparse.REMAINDER); s.set_defaults(f=cmd_run)

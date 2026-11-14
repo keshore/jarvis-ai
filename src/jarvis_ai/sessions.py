@@ -6,7 +6,7 @@ import json, os, re, time
 from . import config, platform_
 
 
-STALE_AFTER = 12 * 3600      # hook sessions with no activity for this long are forgotten; the next prompt re-registers them
+STALE_AFTER = 12 * 3600      # sessions with no activity for this long are forgotten; discovery re-registers live ones
 
 
 def _dir():
@@ -44,7 +44,7 @@ def all():
                 remove(s["id"])
                 continue
             if not s.get("pid") and (s.get("seen") or s.get("created")) and time.time() - (s.get("seen") or s["created"]) > STALE_AFTER:
-                remove(s["id"])             # a hook session whose end we never heard of (crash, closed window)
+                remove(s["id"])             # a session whose end we never heard of (crash, closed window)
                 continue
             out.append(s)
     except OSError:
