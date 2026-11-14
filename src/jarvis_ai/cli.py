@@ -94,6 +94,8 @@ def cmd_setup(a):
 
 
 def cmd_on(a):
+    if getattr(a, "login", False) and _off():
+        return
     if a.model:
         os.environ["JARVIS_AI_STT_MODEL"] = a.model
     if a.sink:
@@ -137,18 +139,13 @@ def cmd_login(a):
     """Start at login, without the Claude Code plugin: a per-user entry that runs `jarvis-ai on` unless you turned it off."""
     p = platform_.login_file()
     if a.state == "on":
-        platform_.set_login([sys.executable, "-m", "jarvis_ai.cli", "login-start"])
+        platform_.set_login([sys.executable, "-m", "jarvis_ai.cli", "on", "--login"])
         print(f"Jarvis starts when you log in ({p}).\nIt stays off if you ran `jarvis-ai off`. Undo with `jarvis-ai login off`.")
     elif a.state == "off":
         platform_.set_login(None)
         print("Jarvis no longer starts at login.")
     else:
         print(f"start at login: {'on' if os.path.exists(p) else 'off'} ({p})")
-
-
-def cmd_login_start(a):
-    if not _off():
-        cmd_on(argparse.Namespace(model=None, sink=None, target=None, foreground=False))
 
 
 def cmd_mcp(a):
@@ -348,7 +345,7 @@ def _suggest(choices):
     if len(sys.argv) < 2 or sys.argv[1].startswith("-") or sys.argv[1] in choices:
         return
     w = sys.argv[1]
-    choices = [c for c in choices if c not in ("hook", "login-start")]      # called by the plugin and the login entry, not by people
+    choices = [c for c in choices if c != "hook"]      # called by the plugin, not by people
     near = [c for c in choices if c.startswith(w)] or difflib.get_close_matches(w, list(choices), n=2, cutoff=0.5)
     shown = " or ".join(f"'{c}'" for c in near[:3])
     sys.exit(f"jarvis-ai: unknown command '{w}'" + (f" (did you mean {shown}?)" if near else "") + "\nrun 'jarvis-ai -h' for the commands")
@@ -366,12 +363,12 @@ def main():
     s = sp.add_parser("on", help="turn voice on")
     s.add_argument("--model", help="speech model name (default: the big model)"); s.add_argument("--sink", help="where your speech goes, e.g. llm, stdout")
     s.add_argument("--target"); s.add_argument("-f", "--foreground", action="store_true", help="run in this terminal and show the log")
+    s.add_argument("--login", action="store_true", help=argparse.SUPPRESS)      # set by the login entry: do nothing if you turned it off
     s.set_defaults(f=cmd_on)
     sp.add_parser("off", help="stop everything and keep it off").set_defaults(f=cmd_stop)
     sp.add_parser("status", help="what is running, which sessions").set_defaults(f=cmd_status)
     s = sp.add_parser("login", help="start at login: on | off"); s.add_argument("state", nargs="?", choices=["on", "off", "status"], default="status")
     s.set_defaults(f=cmd_login)
-    sp.add_parser("login-start", help=argparse.SUPPRESS).set_defaults(f=cmd_login_start)
     sp.add_parser("mcp", help="MCP server (stdio) so an agent can speak").set_defaults(f=cmd_mcp)
     sp.add_parser("doctor", help="check the installation").set_defaults(f=cmd_doctor)
 
