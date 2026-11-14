@@ -139,7 +139,7 @@ reads its reply aloud. When a background session finishes, Jarvis says only "<se
 | Any interactive CLI, no hooks needed | `jarvis-ai run -- aider` (voice in and out; macOS, Linux, WSL) |
 | An agent that speaks MCP | add the stdio server `jarvis-ai mcp`; it offers `speak` and `stop_speaking`, nothing that types or approves (Claude Code: `claude mcp add jarvis -- jarvis-ai mcp`) |
 | A desktop or browser chat window | speech is typed into the focused window (`keystroke` sink); copy a reply and say "read the clipboard" |
-| Talk to a local model directly | `jarvis-ai start --sink llm` (needs the optional LLM) |
+| Talk to a local model directly | `jarvis-ai on --sink llm` (needs the optional LLM) |
 
 Where your speech goes is called a *sink*: `iterm`, `tmux`, `keystroke` (types into whatever has focus, so mind where the cursor is),
 `pty`, `exec`, `llm`, `stdout`.

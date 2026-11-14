@@ -34,7 +34,7 @@ def _spawn_listener():
 
 
 def _off():
-    """True after `jarvis-ai stop`/`off`: automatic start-up stays disabled until `jarvis-ai on`."""
+    """True after `jarvis-ai off`: automatic start-up stays disabled until `jarvis-ai on`."""
     return os.path.exists(config.path(".off"))
 
 
@@ -93,7 +93,7 @@ def cmd_setup(a):
     print("setup done. Next: `jarvis-ai on`")
 
 
-def cmd_start(a):
+def cmd_on(a):
     if a.model:
         os.environ["JARVIS_AI_STT_MODEL"] = a.model
     if a.sink:
@@ -133,12 +133,8 @@ def cmd_stop(a):
     print("stopped. It stays off (sessions will not restart it) until you run `jarvis-ai on`.")
 
 
-def cmd_on(a):
-    cmd_start(argparse.Namespace(model=None, sink=None, target=None, foreground=False))
-
-
 def cmd_login(a):
-    """Start at login, without the Claude Code plugin: a per-user entry that runs `jarvis-ai start` unless you turned it off."""
+    """Start at login, without the Claude Code plugin: a per-user entry that runs `jarvis-ai on` unless you turned it off."""
     p = platform_.login_file()
     if a.state == "on":
         platform_.set_login([sys.executable, "-m", "jarvis_ai.cli", "login-start"])
@@ -152,7 +148,7 @@ def cmd_login(a):
 
 def cmd_login_start(a):
     if not _off():
-        cmd_on(a)
+        cmd_on(argparse.Namespace(model=None, sink=None, target=None, foreground=False))
 
 
 def cmd_mcp(a):
@@ -180,10 +176,6 @@ def cmd_status(a):
         print("  none yet: a Claude Code session joins when it starts or when you send a prompt in it.")
 
 
-def cmd_sessions(a):
-    cmd_status(a)
-
-
 # ---------- speaking ----------
 def _muted():
     return os.path.exists(config.path(".mute"))
@@ -203,45 +195,8 @@ def cmd_speak(a):
     tts_client.speak(textprep.speak_text(raw, a.mode))
 
 
-def cmd_summarize(a):
-    """Summarize stdin with the optional local model and print it (--speak reads it aloud)."""
-    from . import llm
-    out = llm.summarize(sys.stdin.read(), config.load())
-    print(out)
-    if a.speak:
-        tts_client.speak(out)
-
-
-def cmd_say(a):
-    cur = sessions.current()
-    key = a.key or (cur["id"] if cur else "") or config.read_state("target") or "default"
-    raw = textprep.load_last(key) or textprep.load_last(key.split(":")[-1]) or textprep.load_last("default")
-    tts_client.speak(textprep.speak_text(raw, a.kind) if raw else "I have nothing to read yet.")
-
-
-def cmd_mode(a):
-    textprep.set_mode(a.mode)
-    print("mode:", a.mode)
-
-
-def cmd_target(a):
-    t = a.value or os.environ.get("ITERM_SESSION_ID") or os.environ.get("TMUX_PANE") or ""
-    if not t:
-        sys.exit("no target: pass one, or run inside iTerm2 / tmux")
-    config.write_state("target", t)
-    print("target:", t)
-
-
 # ---------- sessions (used by tool adapters) ----------
-def cmd_enable(a):
-    s = sessions.detect(a.session, a.sink or "", a.target or "", a.app or "")
-    sessions.register(s)
-    config.write_state("last_session", a.session)
-    where = s["app"] or s["target"] or "?"
-    print(f"enabled {a.session[:8]} ({s['sink']}: {where})")
-
-
-def cmd_disable(a):
+def _disable(a):
     sessions.remove(a.session)
     if not sessions.all() and getattr(a, "stop_when_idle", False):
         _stop_processes()
@@ -279,7 +234,7 @@ def cmd_hook(a):
     if not sid:
         return
     if a.event == "claude-end":
-        cmd_disable(argparse.Namespace(session=sid, stop_when_idle=True))
+        _disable(argparse.Namespace(session=sid, stop_when_idle=True))
         return
     if a.event == "claude-start":
         _auto_enable(sid)
@@ -364,9 +319,6 @@ def cmd_doctor(a):
     sys.exit(0 if ok else 1)
 
 
-ADVANCED = ["start", "stop", "sessions", "summarize", "say", "mode", "target", "enable", "disable", "hook"]
-
-
 HELP_TOP = """Talk to your AI agent and hear its answers. Speech recognition and the voice run on this machine.
 
 get started:
@@ -396,6 +348,7 @@ def _suggest(choices):
     if len(sys.argv) < 2 or sys.argv[1].startswith("-") or sys.argv[1] in choices:
         return
     w = sys.argv[1]
+    choices = [c for c in choices if c not in ("hook", "login-start")]      # called by the plugin and the login entry, not by people
     near = [c for c in choices if c.startswith(w)] or difflib.get_close_matches(w, list(choices), n=2, cutoff=0.5)
     shown = " or ".join(f"'{c}'" for c in near[:3])
     sys.exit(f"jarvis-ai: unknown command '{w}'" + (f" (did you mean {shown}?)" if near else "") + "\nrun 'jarvis-ai -h' for the commands")
@@ -410,35 +363,21 @@ def main():
     s.add_argument("--models", nargs="*", help="model names to download (default: the big model)")
     s.add_argument("--llm", action="store_true", help="also set up the optional local LLM")
     s.set_defaults(f=cmd_setup)
-    s = sp.add_parser("start", help=argparse.SUPPRESS)
-    s.add_argument("--model", help="explicit model name (default: the big model)"); s.add_argument("--sink"); s.add_argument("--target")
-    s.add_argument("-f", "--foreground", action="store_true"); s.set_defaults(f=cmd_start)
-    sp.add_parser("stop", help=argparse.SUPPRESS).set_defaults(f=cmd_stop)
+    s = sp.add_parser("on", help="turn voice on")
+    s.add_argument("--model", help="speech model name (default: the big model)"); s.add_argument("--sink", help="where your speech goes, e.g. llm, stdout")
+    s.add_argument("--target"); s.add_argument("-f", "--foreground", action="store_true", help="run in this terminal and show the log")
+    s.set_defaults(f=cmd_on)
     sp.add_parser("off", help="stop everything and keep it off").set_defaults(f=cmd_stop)
-    sp.add_parser("on", help="turn voice back on").set_defaults(f=cmd_on)
     sp.add_parser("status", help="what is running, which sessions").set_defaults(f=cmd_status)
     s = sp.add_parser("login", help="start at login: on | off"); s.add_argument("state", nargs="?", choices=["on", "off", "status"], default="status")
     s.set_defaults(f=cmd_login)
     sp.add_parser("login-start", help=argparse.SUPPRESS).set_defaults(f=cmd_login_start)
     sp.add_parser("mcp", help="MCP server (stdio) so an agent can speak").set_defaults(f=cmd_mcp)
-    sp.add_parser("sessions", help=argparse.SUPPRESS).set_defaults(f=cmd_sessions)
     sp.add_parser("doctor", help="check the installation").set_defaults(f=cmd_doctor)
 
     s = sp.add_parser("speak", help="read stdin aloud (brief or full per mode)")
     s.add_argument("--mode", choices=["brief", "full"]); s.add_argument("--key"); s.add_argument("--session")
     s.add_argument("--claude-hook", action="store_true", help="stdin is a Claude Code hook payload"); s.set_defaults(f=cmd_speak)
-    s = sp.add_parser("summarize", help=argparse.SUPPRESS)
-    s.add_argument("--speak", action="store_true"); s.set_defaults(f=cmd_summarize)
-    s = sp.add_parser("say", help=argparse.SUPPRESS); s.add_argument("kind", choices=["brief", "full"])
-    s.add_argument("--key"); s.set_defaults(f=cmd_say)
-    s = sp.add_parser("mode", help=argparse.SUPPRESS); s.add_argument("mode", choices=["brief", "full"]); s.set_defaults(f=cmd_mode)
-    s = sp.add_parser("target", help=argparse.SUPPRESS); s.add_argument("value", nargs="?"); s.set_defaults(f=cmd_target)
-
-    s = sp.add_parser("enable", help=argparse.SUPPRESS)
-    s.add_argument("session"); s.add_argument("--sink", choices=["iterm", "tmux", "keystroke", "pty"])
-    s.add_argument("--target"); s.add_argument("--app", help="keystroke sink: window/app that has the session")
-    s.set_defaults(f=cmd_enable)
-    s = sp.add_parser("disable", help=argparse.SUPPRESS); s.add_argument("session"); s.add_argument("--stop-when-idle", action="store_true"); s.set_defaults(f=cmd_disable)
     s = sp.add_parser("hook", help=argparse.SUPPRESS)
     s.add_argument("event", choices=["claude-start", "claude-stop", "claude-prompt", "claude-end", "json"])
     s.add_argument("payload", nargs="?", help="json event: payload as an argument (else read from stdin)")

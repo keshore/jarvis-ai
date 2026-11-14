@@ -232,10 +232,10 @@ def test_cli_help_hides_plumbing_and_suggests(capsys, monkeypatch):
     out = capsys.readouterr().out
     assert "doctor" in out and "off" in out and "{" not in out
     assert "enable  " not in out.split("more (rarely needed)")[0]
-    monkeypatch.setattr(sys, "argv", ["jarvis-ai", "sta"])
+    monkeypatch.setattr(sys, "argv", ["jarvis-ai", "s"])
     with pytest.raises(SystemExit) as e:
         cli.main()
-    assert "start" in str(e.value) and "status" in str(e.value)
+    assert "setup" in str(e.value) and "status" in str(e.value)
 
 
 def test_stale_hook_sessions_are_forgotten(tmp_path, monkeypatch):
