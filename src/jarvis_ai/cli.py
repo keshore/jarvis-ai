@@ -77,6 +77,8 @@ def cmd_setup(a):
     if not os.path.exists(gl):
         with open(gl, "w") as fh:
             fh.write("# one term per line: names Whisper tends to mishear (project names, libraries, people)\n")
+    from . import models
+    print("\n".join(models.report(cfg)))
     print("setup done. Next: `jarvis-ai on`")
 
 
@@ -136,12 +138,12 @@ def cmd_login(a):
 
 
 def cmd_status(a):
-    from . import llm, stt
+    from . import models
     cfg = config.load()
     print("listener:", "running" if _listener_pid() else "stopped")
     print("voice server:", "running" if tts_client.running() else "stopped")
-    print(f"speech-to-text: {stt.backend_name(cfg)} / {stt.model_name(cfg)}   mode: {textprep.get_mode()}")
-    print("local LLM (optional):", llm.backend(cfg) or "not available (summaries use the simple rules)")
+    print(f"replies are read: {'in full' if textprep.get_mode() == 'full' else 'briefly'}")
+    print("\n".join(models.report(cfg)))
     if cfg.get("discover", True):
         from . import jarvis
         jarvis.sync()
@@ -194,8 +196,10 @@ def cmd_doctor(a):
             ok &= bool(cond)
 
     print(f"platform: {sys.platform}, python {sys.version.split()[0]}, speech backend: {stt.backend_name(cfg)}")
-    for f in KOKORO_FILES:
-        check(f"voice model {f}", os.path.exists(config.path("models", f)), "run `jarvis-ai setup`")
+    from . import models
+    for r in models.rows(cfg):
+        gb = f", {r['bytes'] / 1e9:.1f} GB" if r["bytes"] else ""
+        check(f"{r['job']}: {r['model']} on {r['engine']}{gb}", r["ready"], r["note"], required=r["job"] != "local LLM")
     mods = ["sounddevice", "kokoro_onnx", "pysilero_vad", "mlx_whisper" if stt.backend_name(cfg) == "mlx" else "faster_whisper"]
     for mod in mods:
         try:
@@ -210,8 +214,6 @@ def cmd_doctor(a):
         check("speakers", d[1] is not None and d[1] >= 0 and sd.query_devices(d[1])["max_output_channels"] > 0, "no output device")
     except Exception as e:
         check("audio devices", False, f"{e} (Linux: install PortAudio, e.g. apt install libportaudio2)")
-    from . import llm
-    check("local LLM", llm.backend(cfg) is not None, "optional: Apple Silicon `pip install 'jarvis-ai[llm]'`, or install Ollama", required=False)
     for tool, why in (("tmux", "tmux sink"), ("osascript", "iterm/keystroke sinks (macOS)"),
                       ("xdotool", "window detection on Linux/X11")):
         import shutil
@@ -225,7 +227,7 @@ get started:
   setup       one-time download of the speech models (about 2 GB)
   doctor      check the microphone, speakers and models
   on / off    turn voice on, or stop everything and keep it off
-  status      what is running, which sessions, which model
+  status      what is running, which models, which sessions
   login on    start by itself when you log in (login off undoes it)
 
 use with any tool:
