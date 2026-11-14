@@ -28,6 +28,8 @@ dependencies = [
   "numpy",
   "sounddevice",
   "huggingface_hub",
+  "anthropic",
+  "keyring",
   "kokoro-onnx",
   "pysilero-vad",
   "tomli; python_version < '3.11'",

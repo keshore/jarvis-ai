@@ -63,10 +63,11 @@ def ensure_server():
                 pass
 
 
-def speak(text, voice=""):
-    """Read text aloud. `voice` picks another Kokoro voice for this message only (e.g. Jarvis's own voice)."""
+def speak(text, voice="", add=False):
+    """Read text aloud. `voice` picks another Kokoro voice for this message only. `add=True` queues it after what is being
+    said (used to speak an answer sentence by sentence) instead of replacing it."""
     if text and ensure_server():
-        _send(((f"__VOICE:{voice}__\n" if voice else "") + text).encode("utf-8"))
+        _send((("__ADD__\n" if add else "") + (f"__VOICE:{voice}__\n" if voice else "") + text).encode("utf-8"))
 
 
 def stop():

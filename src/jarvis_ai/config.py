@@ -76,7 +76,14 @@ DEFAULTS = {
     "open_cmd": "claude",             # "Jarvis, open a session in <project>": the agent to start there
     "project_dirs": [],               # folders that hold your projects; empty = common ones (~/src, ~/code ...) and those of open sessions
     "announce": True,                 # say "<session> has finished." when a session you are not looking at finishes (its reply is saved, not read)
-    "discover": True,                 # find agent sessions and read their replies (Claude Code today)
+    "discover": False,                # off for now: find and drive Claude Code sessions on this machine (the earlier design)
+    # --- Jarvis as its own assistant ---
+    "brain": "auto",                  # auto | claude | openai | local. auto: a Claude key if you gave one, else an OpenAI key, else the local model
+    "claude_model": "claude-opus-5-5",
+    "openai_model": "",               # e.g. the model name your OpenAI account offers; empty = OpenAI is not used
+    "openai_url": "https://api.openai.com/v1",
+    "ui": True,                       # the window: a page served on this machine only
+    "ui_port": 0,                     # 0 = pick a free port
     "approval": "dialog",             # how you approve actions taken for you: dialog (a window you click, default) | voice (say yes; weaker)
     "frontend": "commands",           # off | commands (understand loose spoken commands) | assistant (the local LLM sees every sentence; see README)
     "frontend_timeout": 6,            # seconds the local model gets before your sentence is simply forwarded
@@ -94,12 +101,38 @@ def ensure():
     return HOME
 
 
+SETTINGS = ("name", "voice", "speed", "brain", "claude_model", "openai_model", "openai_url", "call_me", "persona")   # what the window may change
+
+
+def load_settings():
+    import json
+    try:
+        with open(path("settings.json")) as fh:
+            d = json.load(fh)
+        return {k: v for k, v in d.items() if k in SETTINGS and isinstance(v, type(DEFAULTS[k]))} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_settings(changes):
+    """Settings made in the window. Only the names in SETTINGS, only values of the right type; never an API key."""
+    import json
+    d = load_settings()
+    for k, v in changes.items():
+        if k in SETTINGS:
+            want = type(DEFAULTS[k])
+            d[k] = want(v) if not isinstance(v, want) else v
+    write_secret("settings.json", json.dumps(d, indent=1))
+    return d
+
+
 def load():
     cfg = dict(DEFAULTS)
     f = path("config.toml")
     if tomllib and os.path.exists(f):
         with open(f, "rb") as fh:
             cfg.update(tomllib.load(fh))
+    cfg.update(load_settings())
     for k in list(cfg):
         v = os.environ.get("JARVIS_AI_" + k.upper())
         if v is not None:

@@ -159,11 +159,29 @@ def _stop_processes():
     if pid:
         platform_.kill_pid(pid)
     tts_client.stop_server()
-    try:
-        os.unlink(_pidfile())
-    except OSError:
-        pass
+    for f in (_pidfile(), config.path("ui.url")):
+        try:
+            os.unlink(f)
+        except OSError:
+            pass
     config.write_state("speaking_until", "0")
+
+
+def cmd_open(a=None):
+    """What a bare `jarvis-ai` does: turn it on if needed and open the window."""
+    import webbrowser
+    if not _listener_pid():
+        _clear_off()
+        _spawn_listener()
+        print("starting Jarvis (the first start loads the models) ...")
+    for _ in range(360):
+        url = config.read_state("ui.url")
+        if url and _listener_pid():
+            webbrowser.open(url)
+            print("Jarvis is open in your browser. `jarvis-ai off` stops it.")
+            return
+        time.sleep(0.5)
+    print(f"Jarvis did not start. See {config.path('listener.log')}")
 
 
 def cmd_stop(a):
@@ -192,9 +210,12 @@ def cmd_status(a):
     print("voice server:", "running" if tts_client.running() else "stopped")
     print(f"replies are read: {'in full' if textprep.get_mode() == 'full' else 'briefly'}")
     print("\n".join(models.report(cfg)))
-    if cfg.get("discover", True):
-        from . import jarvis
-        jarvis.sync()
+    if not cfg.get("discover", False):
+        from . import brain
+        print(f"answers come from: {brain.describe(cfg)}")
+        return
+    from . import jarvis
+    jarvis.sync()
     ss = sessions.all()
     print(f"sessions: {len(ss)}")
     for s in ss:
@@ -269,7 +290,7 @@ def cmd_doctor(a):
     sys.exit(0 if ok else 1)
 
 
-HELP_TOP = """Talk to your AI agent and hear its answers. Speech recognition and the voice run on this machine.
+HELP_TOP = """Jarvis: a voice assistant on your own computer. Run `jarvis-ai` with nothing after it to open its window.
 
 get started:
   setup       one-time download of the speech models (about 2 GB)
@@ -330,6 +351,8 @@ def main():
     s.add_argument("command", nargs=argparse.REMAINDER); s.set_defaults(f=cmd_run)
 
     ap._subparsers._group_actions.clear(); sp._choices_actions = []   # the grouped text above replaces argparse's flat list; every command stays callable
+    if len(sys.argv) == 1:
+        return cmd_open()
     _suggest(sp.choices)
     a = ap.parse_args()
     a.f(a)

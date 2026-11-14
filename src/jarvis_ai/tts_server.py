@@ -119,8 +119,12 @@ def main():
         text = body.decode("utf-8", "ignore").strip()
         if not text:
             continue                                  # empty ping: used to test that the daemon is up
-        gen += 1
-        stop_playback()
+        add = text.startswith("__ADD__\n")                # queue after what is being said, do not cut it off
+        if add:
+            text = text[len("__ADD__\n"):]
+        else:
+            gen += 1
+            stop_playback()
         if text != "__STOP__":
             m = re.match(r"__VOICE:([a-z]{2}_[a-z0-9]+)__\n?", text)      # optional per-message voice (Jarvis's own voice)
             voice = m.group(1) if m else ""

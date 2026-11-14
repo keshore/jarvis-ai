@@ -9,7 +9,7 @@ import collections, os, queue, re, threading, time
 import numpy as np
 import sounddevice as sd
 
-from . import aec, config, gate, intent, jarvis, llm, platform_, sessions, sinks, stt, textprep, tts_client, vad
+from . import aec, assistant, config, gate, intent, jarvis, llm, platform_, sessions, sinks, stt, textprep, tts_client, vad
 
 SR = 16000
 BLOCK = vad.BLOCK               # 512 samples = 32 ms (what Silero expects)
@@ -150,7 +150,16 @@ def main():
     print(f"loading speech model ({stt.backend_name(cfg)}: {stt.model_name(cfg)}; first run downloads it) ...", flush=True)
     tr = stt.Transcriber(cfg)
     tts_client.ensure_server()
-    if cfg.get("discover", True):
+    agent = None
+    if not cfg.get("discover", False):                       # Jarvis is its own assistant: what you say goes to its brain, nowhere else
+        from . import brain
+        agent = assistant.Assistant()
+        print(f"assistant: answers come from {brain.describe(cfg)}; no tools, nothing on this machine is touched", flush=True)
+        if cfg.get("ui", True):
+            from . import ui
+            ui.start(agent, cfg)
+            print("window: run `jarvis-ai` to open it", flush=True)
+    if cfg.get("discover", False):
         jarvis.Watcher(cfg, lambda raw: speak_raw(raw, textprep.get_mode()),
                        announce=lambda line: tts_client.speak(line, JV())).start()
         print("sessions: found automatically; replies are read from the agents' transcripts", flush=True)
@@ -207,8 +216,12 @@ def main():
                 deaf_until = now + TTS_TAIL                      # let the room tail die out
             was_on = on
 
-            if os.path.exists(paused):
+            is_paused = os.path.exists(paused)
+            if is_paused:
                 deaf_until = now + TTS_TAIL
+            if agent:
+                assistant.status("paused" if is_paused else "speaking" if on else "hearing" if seg.active
+                                 else "thinking" if agent.busy else "listening")
 
             if on and not seg.active:
                 if not barge_in:
@@ -231,6 +244,8 @@ def main():
                                 echo_win.append((now, smooth))
                     if hot >= 8:                                 # ~0.25 s: you are talking over the voice
                         tts_client.stop()
+                        if agent:
+                            agent.interrupt()                    # also drop the rest of the answer being written
                         print(f"  (barge-in: level {smooth:.3f} vs echo {echo:.3f})", flush=True)
                         hot, deaf_until = 0, 0.0
                         seg.start_from(list(recent)[-45:])           # keep ~1.4 s from before we noticed: your first words
@@ -281,6 +296,10 @@ def main():
                 else:
                     awake_until = time.time() + wake_window
 
+            if agent:
+                print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe]", flush=True)
+                agent.hear(jarvis.addressed(text, cfg) or text)   # "Jarvis, ..." and plain sentences are the same thing here
+                continue
             rest = jarvis.addressed(text, cfg)
             if rest is not None:
                 print(f"> {text}   [to {cfg['name']}]", flush=True)
