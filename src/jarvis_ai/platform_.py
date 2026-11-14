@@ -135,3 +135,43 @@ def kill_pid(pid):
             os.kill(pid, signal.SIGTERM)
     except OSError:
         pass
+
+
+# ---------- start at login ----------
+LOGIN_LABEL = "ai.jarvis.listener"
+
+
+def login_file():
+    """The per-user file that starts Jarvis at login on this system (no administrator rights needed)."""
+    if IS_MAC:
+        return os.path.expanduser(f"~/Library/LaunchAgents/{LOGIN_LABEL}.plist")
+    if IS_WIN:
+        return os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "jarvis-ai.cmd")
+    return os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "autostart", "jarvis-ai.desktop")
+
+
+def login_entry(argv):
+    """Contents of that file for the command `argv`."""
+    if IS_MAC:
+        import plistlib
+        return plistlib.dumps({"Label": LOGIN_LABEL, "ProgramArguments": list(argv), "RunAtLoad": True, "ProcessType": "Interactive"}).decode()
+    if IS_WIN:
+        return "@echo off\r\nstart \"\" /min " + subprocess.list2cmdline(argv) + "\r\n"
+    import shlex
+    return ("[Desktop Entry]\nType=Application\nName=Jarvis AI\nComment=Hands-free voice for AI agents\n"
+            f"Exec={shlex.join(argv)}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n")
+
+
+def set_login(argv):
+    """Write (argv given) or remove (argv None) the login entry. Returns its path."""
+    p = login_file()
+    if argv is None:
+        try:
+            os.unlink(p)
+        except OSError:
+            pass
+        return p
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", newline="") as fh:
+        fh.write(login_entry(argv))
+    return p

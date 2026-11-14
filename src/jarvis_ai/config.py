@@ -74,6 +74,7 @@ DEFAULTS = {
     "jarvis_voice": "",               # a different Kokoro voice for Jarvis's own words; empty = one voice for everything (`voice`)
     "open_cmd": "claude",             # "Jarvis, open a session in <project>": the agent to start there
     "project_dirs": [],               # folders that hold your projects; empty = common ones (~/src, ~/code ...) and those of open sessions
+    "announce": True,                 # say "<session> has finished." when a session you are not looking at finishes (its reply is saved, not read)
     "discover": True,                 # find agent sessions and read their replies without a plugin (Claude Code today)
     "approval": "dialog",             # how you approve actions taken for you: dialog (a window you click, default) | voice (say yes; weaker)
     "frontend": "commands",           # off | commands (understand loose spoken commands) | assistant (the local LLM sees every sentence; see README)

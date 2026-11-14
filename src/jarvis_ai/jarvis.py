@@ -40,9 +40,10 @@ def sync():
 class Watcher(threading.Thread):
     """Keeps the registry current and speaks finished replies of sessions that have no hooks (no plugin needed)."""
 
-    def __init__(self, cfg, speak, interval=1.0):
+    def __init__(self, cfg, speak, interval=1.0, announce=None):
         super().__init__(daemon=True)
         self.cfg, self.speak, self.interval, self.tails, self._n = cfg, speak, interval, {}, 0
+        self.announce = announce or (lambda line: None)
 
     def step(self):
         if self._n % 3 == 0:
@@ -68,6 +69,8 @@ class Watcher(threading.Thread):
             cur = sessions.current()
             if cur and cur["id"] != s["id"]:
                 print(f"  ({spoken_name(s)} finished; you are looking elsewhere, reply saved)", flush=True)
+                if self.cfg.get("announce", True):
+                    self.announce(finished_line(s))
                 return
         print(f"  (reply from {spoken_name(s)}: {len(text)} characters)", flush=True)
         self.speak(text)
@@ -89,6 +92,12 @@ def addressed(text, cfg):
         return None
     m = re.match(rf"^\W*(?:(?:hey|ok|okay|hi|yo)\W+)?{re.escape(name)}\b[\s,.!?:;-]*(.*)$", text.strip(), flags=re.I | re.S)
     return m.group(1).strip() if m else None
+
+
+def finished_line(s):
+    """What is said when a session you are not looking at finishes: its reply is saved, not read out."""
+    n = spoken_name(s)
+    return f"{n[:1].upper()}{n[1:]} has finished."
 
 
 def spoken_name(s):

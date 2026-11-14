@@ -48,6 +48,10 @@ other app on macOS (Terminal, VS Code, Warp, Ghostty ...) it works through that 
 /plugin install jarvis-ai@jarvis-ai
 ```
 
+**Start at login** (no plugin needed): `jarvis-ai login on`. It writes one per-user file (a LaunchAgent on macOS, an autostart entry
+on Linux, a Startup script on Windows) and respects `jarvis-ai off`. `jarvis-ai login off` removes it. Written and tested as a file;
+not yet verified across a real logout and login.
+
 **Optional: echo cancellation**, so you can interrupt the voice when it plays through speakers (headphones do not need it):
 `pipx inject jarvis-ai aec-audio-processing` (or `pip install 'jarvis-ai[aec]'`; Python 3.11+). It builds a small C++ library, so macOS needs the
 Xcode Command Line Tools and Linux a compiler; Windows has a prebuilt wheel. Without it everything still works, with a weaker interruption check.
@@ -123,7 +127,8 @@ a window with **Approve** / **Cancel** (Cancel is the default, no answer means n
 ### Several sessions
 
 Your speech goes to **the session you are looking at** (the iTerm tab in front, or the desktop app in front), and only that session
-reads its reply aloud. A reply that finishes in a background session is saved, so "read it all" works once you switch to it.
+reads its reply aloud. When a background session finishes, Jarvis says only "<session> has finished." and saves the reply, so
+"read it all" works once you switch to it. `announce = false` keeps it silent.
 
 ## Any other agent
 
@@ -132,6 +137,7 @@ reads its reply aloud. A reply that finishes in a background session is saved, s
 | Read any command's output aloud | `some-agent ... \| jarvis-ai speak` |
 | A tool with a hook or notify command that sends JSON | `jarvis-ai hook json` (Codex: `notify = ["jarvis-ai", "hook", "json"]` in `~/.codex/config.toml`; unverified) |
 | Any interactive CLI, no hooks needed | `jarvis-ai run -- aider` (voice in and out; macOS, Linux, WSL) |
+| An agent that speaks MCP | add the stdio server `jarvis-ai mcp`; it offers `speak` and `stop_speaking`, nothing that types or approves (Claude Code: `claude mcp add jarvis -- jarvis-ai mcp`) |
 | A desktop or browser chat window | speech is typed into the focused window (`keystroke` sink); copy a reply and say "read the clipboard" |
 | Talk to a local model directly | `jarvis-ai start --sink llm` (needs the optional LLM) |
 

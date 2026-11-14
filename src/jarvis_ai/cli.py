@@ -137,6 +137,29 @@ def cmd_on(a):
     cmd_start(argparse.Namespace(model=None, sink=None, target=None, foreground=False))
 
 
+def cmd_login(a):
+    """Start at login, without the Claude Code plugin: a per-user entry that runs `jarvis-ai start` unless you turned it off."""
+    p = platform_.login_file()
+    if a.state == "on":
+        platform_.set_login([sys.executable, "-m", "jarvis_ai.cli", "login-start"])
+        print(f"Jarvis starts when you log in ({p}).\nIt stays off if you ran `jarvis-ai off`. Undo with `jarvis-ai login off`.")
+    elif a.state == "off":
+        platform_.set_login(None)
+        print("Jarvis no longer starts at login.")
+    else:
+        print(f"start at login: {'on' if os.path.exists(p) else 'off'} ({p})")
+
+
+def cmd_login_start(a):
+    if not _off():
+        cmd_on(a)
+
+
+def cmd_mcp(a):
+    from . import mcp
+    mcp.serve()
+
+
 def cmd_status(a):
     from . import llm, stt
     cfg = config.load()
@@ -286,8 +309,11 @@ def cmd_hook(a):
         cfg = config.load()
         if cfg.get("focus_follows", True):
             cur = sessions.current()
-            if cur and cur["id"] != sid:
-                return                                     # you are looking elsewhere: stay quiet (reply is saved)
+            if cur and cur["id"] != sid:                   # you are looking elsewhere: the reply is saved, only its arrival is said
+                if cfg.get("announce", True):
+                    from . import jarvis
+                    tts_client.speak(jarvis.finished_line(s), cfg.get("jarvis_voice", ""))
+                return
         tts_client.speak(textprep.speak_text(raw))
 
 
@@ -348,11 +374,13 @@ get started:
   doctor      check the microphone, speakers and models
   on / off    turn voice on, or stop everything and keep it off
   status      what is running, which sessions, which model
+  login on    start by itself when you log in (login off undoes it)
 
 use with any tool:
   run         add voice to any interactive CLI:    jarvis-ai run -- aider
   speak       read text aloud:                     some-agent | jarvis-ai speak
               (--mode full reads everything, default is a short version)
+  mcp         MCP server for agents that speak MCP: tools `speak` and `stop_speaking`
 
 while talking, say:
   "stop" silences the voice          "interrupt" also stops the AI's turn
@@ -390,6 +418,10 @@ def main():
     sp.add_parser("off", help="stop everything and keep it off").set_defaults(f=cmd_stop)
     sp.add_parser("on", help="turn voice back on").set_defaults(f=cmd_on)
     sp.add_parser("status", help="what is running, which sessions").set_defaults(f=cmd_status)
+    s = sp.add_parser("login", help="start at login: on | off"); s.add_argument("state", nargs="?", choices=["on", "off", "status"], default="status")
+    s.set_defaults(f=cmd_login)
+    sp.add_parser("login-start", help=argparse.SUPPRESS).set_defaults(f=cmd_login_start)
+    sp.add_parser("mcp", help="MCP server (stdio) so an agent can speak").set_defaults(f=cmd_mcp)
     sp.add_parser("sessions", help=argparse.SUPPRESS).set_defaults(f=cmd_sessions)
     sp.add_parser("doctor", help="check the installation").set_defaults(f=cmd_doctor)
 

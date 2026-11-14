@@ -90,7 +90,8 @@ def test_watcher_reads_replies_without_hooks_and_leaves_plugin_sessions_alone(ho
     monkeypatch.setattr(jarvis, "sync", lambda: [])
     monkeypatch.setattr(sessions, "current", lambda: sessions.get("s1"))
     spoken = []
-    w = jarvis.Watcher(CFG, spoken.append)
+    told = []
+    w = jarvis.Watcher(CFG, spoken.append, announce=told.append)
     w.step()
     with open(tr, "a") as fh:
         fh.write(json.dumps({"type": "assistant", "message": {"stop_reason": "end_turn", "content": [{"type": "text", "text": "All tests pass."}]}}) + "\n")
@@ -101,6 +102,7 @@ def test_watcher_reads_replies_without_hooks_and_leaves_plugin_sessions_alone(ho
         fh.write(json.dumps({"type": "assistant", "message": {"stop_reason": "end_turn", "content": [{"type": "text", "text": "Second."}]}}) + "\n")
     w.step()
     assert spoken == ["All tests pass."] and textprep.load_last("s1") == "Second."
+    assert told == [jarvis.finished_line(sessions.get("s1"))] and told[0].endswith("has finished.")
 
 
 def test_ask_will_not_type_into_an_app_that_holds_two_sessions(home):
