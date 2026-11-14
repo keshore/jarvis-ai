@@ -16,4 +16,4 @@ mkdir -p "$HOME/.local/bin"
 ln -sf "$HOME_DIR/venv/bin/jarvis-ai" "$HOME/.local/bin/jarvis-ai"
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) echo "Add to PATH:  export PATH=\"\$HOME/.local/bin:\$PATH\"";; esac
 "$HOME_DIR/venv/bin/jarvis-ai" setup $([ "$1" = "--llm" ] && echo --llm)
-echo; echo "Done. Try:  jarvis-ai doctor   then   jarvis-ai start"
+echo; echo "Done. Try:  jarvis-ai doctor   then   jarvis-ai on"

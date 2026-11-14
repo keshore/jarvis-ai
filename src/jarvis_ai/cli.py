@@ -90,7 +90,7 @@ def cmd_setup(a):
     if not os.path.exists(gl):
         with open(gl, "w") as fh:
             fh.write("# one term per line: names Whisper tends to mishear (project names, libraries, people)\n")
-    print("setup done. Next: `jarvis-ai start`")
+    print("setup done. Next: `jarvis-ai on`")
 
 
 def cmd_start(a):
@@ -386,8 +386,7 @@ while talking, say:
   "stop" silences the voice          "interrupt" also stops the AI's turn
   "read it all"  the whole reply     "summarize that"  a short version
 """
-HELP_END = """more commands (rarely needed): """ + ", ".join(ADVANCED) + """
-  'jarvis-ai <command> -h' shows the options of one command.
+HELP_END = """'jarvis-ai <command> -h' shows the options of one command.
 files: ~/.jarvis-ai/config.toml, listener.log, tts.log      docs: https://github.com/keshore/jarvis-ai"""
 
 
