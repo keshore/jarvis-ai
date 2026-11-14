@@ -25,12 +25,36 @@ SUMMARY_SYSTEM = (
 MLX_BY_RAM = ((22, "mlx-community/Qwen3-8B-4bit"), (12, "mlx-community/Qwen3-4B-Instruct-2507-4bit"), (0, "mlx-community/Qwen3-1.7B-4bit"))
 
 
+OLLAMA_BY_RAM = ((22, "qwen3:8b"), (12, "qwen3:4b"), (0, "qwen3:1.7b"))      # the same family and sizes as the MLX list
+
+
 def ram_gb():
+    """Installed memory in GB; 0.0 when it cannot be read (then the smallest model is chosen)."""
     try:
+        if platform_.IS_WIN:
+            import ctypes
+
+            class MS(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong)] + [
+                    (n, ctypes.c_ulonglong) for n in ("ullTotalPhys", "ullAvailPhys", "ullTotalPageFile", "ullAvailPageFile",
+                                                      "ullTotalVirtual", "ullAvailVirtual", "ullAvailExtendedVirtual")]
+            m = MS()
+            m.dwLength = ctypes.sizeof(MS)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ullTotalPhys / 2 ** 30
         import os
         return os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / 2 ** 30
-    except (ValueError, OSError, AttributeError):
+    except Exception:
         return 0.0
+
+
+def ollama_name(cfg):
+    """`ollama_model = "auto"` picks by memory, like `llm_model` does for MLX."""
+    m = cfg.get("ollama_model", "auto")
+    if m and m != "auto":
+        return m
+    gb = ram_gb()
+    return next(name for floor, name in OLLAMA_BY_RAM if gb >= floor)
 
 
 def model_name(cfg):
@@ -79,7 +103,7 @@ def backend(cfg):
         return "mlx"
     if want in ("auto", "ollama"):
         tags = _ollama_models(cfg)
-        if tags is not None and any(t == cfg["ollama_model"] or t.split(":")[0] == cfg["ollama_model"] for t in tags):
+        if tags is not None and any(t == ollama_name(cfg) or t.split(":")[0] == ollama_name(cfg) for t in tags):
             return "ollama"
     if want in ("auto", "openai") and cfg.get("llm_url") and _openai_up(cfg):
         return "openai"
@@ -138,7 +162,7 @@ def _gen_mlx(messages, cfg, max_tokens):
 
 # ---------- ollama ----------
 def _gen_ollama(messages, cfg, max_tokens):
-    body = json.dumps({"model": cfg["ollama_model"], "messages": messages, "stream": False,
+    body = json.dumps({"model": ollama_name(cfg), "messages": messages, "stream": False, "think": False,
                        "keep_alive": f"{int(cfg['llm_idle_seconds'])}s",
                        "options": {"num_predict": max_tokens}}).encode()
     req = urllib.request.Request(cfg["ollama_url"].rstrip("/") + "/api/chat", data=body,

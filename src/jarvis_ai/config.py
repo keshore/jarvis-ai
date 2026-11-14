@@ -59,7 +59,7 @@ DEFAULTS = {
     "llm_url": "",                    # backend openai: e.g. http://127.0.0.1:8080/v1 (llama.cpp), http://127.0.0.1:1234/v1 (LM Studio)
     "llm_api_model": "",              # backend openai: model name, if the server needs one
     "llm_model": "auto",     # backend mlx: any MLX model, or "auto" (picks 1.7B / 4B / 8B by memory)
-    "ollama_model": "llama3.2:3b",    # backend ollama
+    "ollama_model": "auto",           # backend ollama; auto = qwen3 1.7b / 4b / 8b by installed memory
     "ollama_url": "http://127.0.0.1:11434",
     "llm_idle_seconds": 300,          # unload the model from memory after this much idle time
     "llm_max_tokens": 250,

@@ -119,6 +119,10 @@ def test_model_is_chosen_by_memory(monkeypatch):
         monkeypatch.setattr(llm, "ram_gb", lambda gb=gb: gb)
         assert want in llm.model_name({"llm_model": "auto"})
     assert llm.model_name({"llm_model": "my/model"}) == "my/model"
+    for gb, want in ((8, "qwen3:1.7b"), (16, "qwen3:4b"), (32, "qwen3:8b"), (0, "qwen3:1.7b")):
+        monkeypatch.setattr(llm, "ram_gb", lambda gb=gb: gb)
+        assert llm.ollama_name({"ollama_model": "auto"}) == want
+    assert llm.ollama_name({"ollama_model": "llama3.2:3b"}) == "llama3.2:3b"
 
 
 def test_an_ended_session_does_not_shadow_the_live_one_in_the_same_tab(home, monkeypatch):

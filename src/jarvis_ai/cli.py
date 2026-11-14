@@ -65,7 +65,14 @@ def cmd_setup(a):
             print(f"fetching local model {llm.model_name(cfg)} ...")
             snapshot_download(llm.model_name(cfg))
         else:
-            print(f"optional local LLM: install Ollama (https://ollama.com) and run:  ollama pull {cfg['ollama_model']}")
+            import shutil
+            name = llm.ollama_name(cfg)
+            if shutil.which("ollama"):
+                print(f"fetching local model {name} through Ollama ...")
+                if subprocess.run(["ollama", "pull", name]).returncode != 0:
+                    print(f"  could not fetch it. Start Ollama, then run:  ollama pull {name}")
+            else:
+                print(f"optional local LLM: install Ollama (https://ollama.com), then run:  ollama pull {name}")
     gl = config.path("glossary.txt")
     if not os.path.exists(gl):
         with open(gl, "w") as fh:
