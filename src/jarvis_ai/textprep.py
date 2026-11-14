@@ -1,5 +1,5 @@
 """Local text prep: what to say out loud. Stdlib only. No LLM, no network, no tokens."""
-import os, re, json
+import os, re
 
 from . import config
 
@@ -172,3 +172,28 @@ def noise(text):
     """True for what should be dropped unheard: Whisper's stock phrases on silence, bare punctuation, thinking noises."""
     t = text.lower().strip(" .!?,\u2026")
     return t in JUNK or bool(re.fullmatch(r"[\W_]*", text)) or bool(FILLER.fullmatch(t))
+
+
+# ---------- how a spoken sentence is meant ----------
+def addressed(text, cfg):
+    """'Jarvis, switch to X' -> 'switch to X'. None when the sentence is not addressed to the assistant."""
+    name = (cfg.get("name") or "").strip().lower()
+    if not name:
+        return None
+    m = re.match(rf"^\W*(?:(?:hey|ok|okay|hi|yo)\W+)?{re.escape(name)}\b[\s,.!?:;-]*(.*)$", text.strip(), flags=re.I | re.S)
+    return m.group(1).strip() if m else None
+
+
+_DANGLE = set("and but or so because to the a an of about with for that if when which who can could would will should is are was i we you it "
+              "please then also like my your this these those".split())
+
+
+def dangling(text):
+    """Did the sentence stop half way ('Can you...', '... and')? Then the next thing you say belongs to it."""
+    t = text.strip()
+    if t.endswith("...") or t.endswith("\u2026"):
+        return True
+    if t.endswith(("?", "!")):
+        return False
+    words = re.findall(r"[a-z']+", t.lower())
+    return len(words) >= 2 and words[-1] in _DANGLE

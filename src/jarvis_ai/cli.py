@@ -1,7 +1,7 @@
 """jarvis-ai command line."""
-import argparse, json, os, subprocess, sys, time, urllib.request
+import argparse, os, subprocess, sys, time, urllib.request
 
-from . import config, platform_, sessions, textprep, tts_client
+from . import config, platform_, tts_client
 
 KOKORO_BASE = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
 KOKORO_FILES = ("kokoro-v1.0.onnx", "voices-v1.0.bin")
@@ -135,14 +135,6 @@ def cmd_on(a):
         return
     if a.model:
         os.environ["JARVIS_AI_STT_MODEL"] = a.model
-    if a.sink:
-        os.environ["JARVIS_AI_SINK"] = a.sink
-    if a.target:
-        config.write_state("target", a.target)
-    elif not config.read_state("target"):
-        t = os.environ.get("ITERM_SESSION_ID") or os.environ.get("TMUX_PANE") or ""
-        if t:
-            config.write_state("target", t)
     if a.foreground:
         from . import listener
         return listener.run()
@@ -187,7 +179,7 @@ def cmd_open(a=None):
 def cmd_stop(a):
     _stop_processes()
     config.write_state(".off", "1")
-    print("stopped. It stays off (sessions will not restart it) until you run `jarvis-ai on`.")
+    print("stopped. It stays off until you run `jarvis-ai` or `jarvis-ai on`.")
 
 
 def cmd_login(a):
@@ -208,49 +200,9 @@ def cmd_status(a):
     cfg = config.load()
     print("listener:", "running" if _listener_pid() else "stopped")
     print("voice server:", "running" if tts_client.running() else "stopped")
-    print(f"replies are read: {'in full' if textprep.get_mode() == 'full' else 'briefly'}")
     print("\n".join(models.report(cfg)))
-    if not cfg.get("discover", False):
-        from . import brain
-        print(f"answers come from: {brain.describe(cfg)}")
-        return
-    from . import jarvis
-    jarvis.sync()
-    ss = sessions.all()
-    print(f"sessions: {len(ss)}")
-    for s in ss:
-        where = s.get("app") or s.get("target", "")
-        state = ("working" if s.get("busy") else "idle") if "busy" in s else ""
-        print(f"  {s['id'][:8]}  {(s.get('name') or '')[:28]:28} {s['sink']:9} {state:8} {where}")
-    if not ss:
-        print("  none yet: a Claude Code session joins when it starts or when you send a prompt in it.")
-
-
-# ---------- speaking ----------
-def _muted():
-    return os.path.exists(config.path(".mute"))
-
-
-def cmd_speak(a):
-    if _muted() or (a.session and not sessions.get(a.session)):
-        return
-    raw = sys.stdin.read()
-    if not raw.strip():
-        return
-    key = a.key or a.session or config.read_state("target") or "default"
-    for k in {key, key.split(":")[-1], "default"}:
-        textprep.save_last(k, raw)
-    tts_client.speak(textprep.speak_text(raw, a.mode))
-
-
-def cmd_run(a):
-    cmd = [c for c in a.command if c != "--"] if a.command and a.command[0] == "--" else a.command
-    if not cmd:
-        sys.exit("usage: jarvis-ai run [--no-speak] -- <command> [args...]")
-    if platform_.IS_WIN:
-        sys.exit("`jarvis-ai run` needs a Unix pseudo-terminal (macOS, Linux, or WSL on Windows).")
-    from . import ptyrun
-    ptyrun.run(cmd, speak=not a.no_speak, idle=a.idle)
+    from . import brain
+    print(f"answers come from: {brain.describe(cfg)}")
 
 
 def cmd_doctor(a):
@@ -283,33 +235,21 @@ def cmd_doctor(a):
         check("speakers", d[1] is not None and d[1] >= 0 and sd.query_devices(d[1])["max_output_channels"] > 0, "no output device")
     except Exception as e:
         check("audio devices", False, f"{e} (Linux: install PortAudio, e.g. apt install libportaudio2)")
-    for tool, why in (("tmux", "tmux sink"), ("osascript", "iterm/keystroke sinks (macOS)"),
-                      ("xdotool", "window detection on Linux/X11")):
-        import shutil
-        check(f"{tool} ({why})", shutil.which(tool) is not None, "only needed for that feature", required=False)
     sys.exit(0 if ok else 1)
 
 
 HELP_TOP = """Jarvis: a voice assistant on your own computer. Run `jarvis-ai` with nothing after it to open its window.
 
-get started:
-  setup       one-time download of the speech models (about 2 GB)
+  setup       one-time download of the speech models (about 2 GB); --llm also sets up the local model
   doctor      check the microphone, speakers and models
-  on / off    turn voice on, or stop everything and keep it off
-  status      what is running, which models, which sessions
+  on / off    start it in the background, or stop everything and keep it off
+  status      what is running, which models, where answers come from
   login on    start by itself when you log in (login off undoes it)
 
-use with any tool:
-  run         add voice to any interactive CLI:    jarvis-ai run -- aider
-  speak       read text aloud:                     some-agent | jarvis-ai speak
-              (--mode full reads everything, default is a short version)
-
-while talking, say:
-  "stop" silences the voice          "interrupt" also stops the AI's turn
-  "read it all"  the whole reply     "summarize that"  a short version
+while talking, say "stop" to silence it, or just start talking over it.
 """
 HELP_END = """'jarvis-ai <command> -h' shows the options of one command.
-files: ~/.jarvis-ai/config.toml, listener.log, tts.log      docs: https://github.com/keshore/jarvis-ai"""
+files: ~/.jarvis-ai/config.toml, listener.log, tts.log      docs: https://github.com/mintlime-in/jarvis-ai"""
 
 
 def _suggest(choices):
@@ -333,22 +273,16 @@ def main():
     s.add_argument("--llm", action="store_true", help="also set up the optional local LLM")
     s.set_defaults(f=cmd_setup)
     s = sp.add_parser("on", help="turn voice on")
-    s.add_argument("--model", help="speech model name (default: the big model)"); s.add_argument("--sink", help="where your speech goes, e.g. llm, stdout")
-    s.add_argument("--target"); s.add_argument("-f", "--foreground", action="store_true", help="run in this terminal and show the log")
+    s.add_argument("--model", help="speech model name (default: the big model)")
+    s.add_argument("-f", "--foreground", action="store_true", help="run in this terminal and show the log")
     s.add_argument("--login", action="store_true", help=argparse.SUPPRESS)      # set by the login entry: do nothing if you turned it off
     s.set_defaults(f=cmd_on)
     sp.add_parser("off", help="stop everything and keep it off").set_defaults(f=cmd_stop)
-    sp.add_parser("status", help="what is running, which sessions").set_defaults(f=cmd_status)
+    sp.add_parser("status", help="what is running, which models").set_defaults(f=cmd_status)
     s = sp.add_parser("login", help="start at login: on | off"); s.add_argument("state", nargs="?", choices=["on", "off", "status"], default="status")
     s.set_defaults(f=cmd_login)
     sp.add_parser("doctor", help="check the installation").set_defaults(f=cmd_doctor)
 
-    s = sp.add_parser("speak", help="read stdin aloud (brief or full per mode)")
-    s.add_argument("--mode", choices=["brief", "full"]); s.add_argument("--key"); s.add_argument("--session")
-    s.set_defaults(f=cmd_speak)
-    s = sp.add_parser("run", help="run ANY interactive CLI with voice in and out")
-    s.add_argument("--no-speak", action="store_true"); s.add_argument("--idle", type=float, default=1.5)
-    s.add_argument("command", nargs=argparse.REMAINDER); s.set_defaults(f=cmd_run)
 
     ap._subparsers._group_actions.clear(); sp._choices_actions = []   # the grouped text above replaces argparse's flat list; every command stays callable
     if len(sys.argv) == 1:

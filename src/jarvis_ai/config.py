@@ -33,10 +33,7 @@ DEFAULTS = {
     # --- text to speech (Kokoro, runs on any CPU) ---
     "voice": "af_bella",
     "speed": 1.05,
-    # --- where your speech goes when no session is registered ---
-    "sink": "auto",                   # auto | iterm | tmux | keystroke | pty | exec | llm | stdout
-    "exec_cmd": "",                   # sink=exec: shell command; transcript on stdin, reply spoken
-    "mode": "brief",                  # automatic speech: brief | full
+    "mode": "brief",                  # summaries: brief | full
     # --- listening ---
     "vad": "silero",                  # silero (neural, recommended) | volume (plain loudness gate)
     "vad_start": 0.6,                 # speech probability needed to start an utterance
@@ -49,12 +46,9 @@ DEFAULTS = {
     "aec_delay_ms": 150,              # speaker -> microphone round trip on your machine
     "barge_in": True,                 # talk over the voice to interrupt it
     "barge_ratio": 2.2,               # how much louder than the echo you must be
-    "wake_word": "",                  # e.g. "hey claude": ignore speech until you say it (then stay awake)
+    "wake_word": "",                  # e.g. "hey jarvis": ignore speech until you say it (then stay awake)
     "wake_window": 30,                # seconds you can keep talking after the wake word
-    "focus_follows": True,            # speech goes to the session you are looking at; only it speaks
-    "app": "",                        # sink=keystroke: app to bring to front before typing
-    # --- optional local LLM (summaries, chat sink). Nothing breaks without it. ---
-    "summarizer": "auto",             # auto (use an LLM if one is available) | llm | extractive
+    # --- the local model (the brain when no cloud key is given) ---
     "llm_backend": "auto",            # auto | mlx (Apple Silicon) | llamacpp (built in, any machine) | ollama | openai (any OpenAI-compatible server)
     "llm_url": "",                    # backend openai: e.g. http://127.0.0.1:8080/v1 (llama.cpp), http://127.0.0.1:1234/v1 (LM Studio)
     "llm_api_model": "",              # backend openai: model name, if the server needs one
@@ -65,19 +59,10 @@ DEFAULTS = {
     "ollama_url": "http://127.0.0.1:11434",
     "llm_idle_seconds": 300,          # unload the model from memory after this much idle time
     "llm_max_tokens": 250,
-    "name": "jarvis",                 # say it first to talk to the assistant itself: "Jarvis, switch to the portal session". "" turns it off
-    "talk_to": "jarvis",              # jarvis: you talk to Jarvis; it answers what the conversation already holds, chats, and asks
-                                      #         before passing anything to the agent (needs a local model; without one it behaves like "agent")
-                                      # agent:  what you say is typed straight into the session in front
-    "confirm_agent": "always",        # always: Jarvis asks "shall I ask Claude?" and waits for your yes | never: it passes things on directly
+    # --- Jarvis ---
+    "name": "jarvis",                 # its name: "Jarvis, ..." works the same as a plain sentence; Whisper is told to expect it
     "persona": "",                    # Jarvis's character in one line; empty = calm, dry-witted British assistant
     "call_me": "",                    # what Jarvis calls you now and then, e.g. "sir" or your name
-    "jarvis_voice": "",               # a different Kokoro voice for Jarvis's own words; empty = one voice for everything (`voice`)
-    "open_cmd": "claude",             # "Jarvis, open a session in <project>": the agent to start there
-    "project_dirs": [],               # folders that hold your projects; empty = common ones (~/src, ~/code ...) and those of open sessions
-    "announce": True,                 # say "<session> has finished." when a session you are not looking at finishes (its reply is saved, not read)
-    "discover": False,                # off for now: find and drive Claude Code sessions on this machine (the earlier design)
-    # --- Jarvis as its own assistant ---
     "brain": "auto",                  # auto | claude | openai | local. auto: a Claude key if you gave one, else an OpenAI key, else the local model
     "claude_model": "claude-opus-5-5",
     "openai_model": "",               # e.g. the model name your OpenAI account offers; empty = OpenAI is not used
@@ -86,11 +71,6 @@ DEFAULTS = {
     "speak_answers": True,            # false = answers appear in the window only
     "ui": True,                       # the window: a page served on this machine only
     "ui_port": 0,                     # 0 = pick a free port
-    "approval": "dialog",             # how you approve actions taken for you: dialog (a window you click, default) | voice (say yes; weaker)
-    "frontend": "commands",           # off | commands (understand loose spoken commands) | assistant (the local LLM sees every sentence; see README)
-    "frontend_timeout": 6,            # seconds the local model gets before your sentence is simply forwarded
-    "llm_system": "You are a concise voice assistant. Answer in at most three short, natural spoken sentences. "
-                  "No markdown, lists, code or symbols.",
 }
 
 

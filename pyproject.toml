@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "jarvis-ai"
 version = "0.3.1"
-description = "Local, private, hands-free voice for any AI agent: speech in and out on your own machine, nothing leaves it."
+description = "A voice assistant on your own computer: local speech in and out, a local or cloud brain, history you control."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "MIT" }
-keywords = ["voice", "voice-control", "hands-free", "speech-to-text", "text-to-speech", "whisper", "kokoro", "dictation", "tts", "stt", "barge-in", "claude-code", "codex", "ai-agent", "local", "offline", "privacy", "accessibility"]
+keywords = ["voice", "voice-control", "hands-free", "speech-to-text", "text-to-speech", "whisper", "kokoro", "dictation", "tts", "stt", "barge-in", "voice-assistant", "personal-assistant", "local", "offline", "privacy", "accessibility"]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -40,17 +40,16 @@ dependencies = [
 [project.optional-dependencies]
 llm = ["mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'"]   # elsewhere `jarvis-ai setup --llm` installs llama.cpp, or falls back to Ollama
 aec = ["aec-audio-processing; python_version >= '3.11'"]                   # echo cancellation; builds a C++ library on macOS/Linux
-keys = ["pynput; sys_platform != 'darwin'"]                                  # keystroke sink on Linux/Windows
 dev = ["pytest"]
 
 [project.scripts]
 jarvis-ai = "jarvis_ai.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/keshore/jarvis-ai"
-Repository = "https://github.com/keshore/jarvis-ai"
-Issues = "https://github.com/keshore/jarvis-ai/issues"
-Changelog = "https://github.com/keshore/jarvis-ai/releases"
+Homepage = "https://github.com/mintlime-in/jarvis-ai"
+Repository = "https://github.com/mintlime-in/jarvis-ai"
+Issues = "https://github.com/mintlime-in/jarvis-ai/issues"
+Changelog = "https://github.com/mintlime-in/jarvis-ai/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -1,15 +1,14 @@
-"""Hands-free, fully local voice input.
+"""Hands-free, fully local voice input for the assistant.
 
-mic -> volume VAD -> local Whisper (mlx-whisper or faster-whisper) -> spoken commands handled here,
-everything else sent to the session you are looking at. No audio and no text leaves the machine; the Whisper
-model is downloaded once and then cached.
+mic -> speech detector -> local Whisper (mlx-whisper or faster-whisper) -> the assistant. Audio never leaves the machine;
+the Whisper model is downloaded once and then cached. What happens to the text is up to the brain you chose (see brain.py).
 """
-import collections, os, queue, re, threading, time
+import collections, os, queue, re, time
 
 import numpy as np
 import sounddevice as sd
 
-from . import aec, assistant, config, gate, intent, jarvis, llm, platform_, sessions, sinks, stt, textprep, tts_client, vad
+from . import aec, assistant, brain, config, stt, textprep, tts_client, vad
 
 SR = 16000
 BLOCK = vad.BLOCK               # 512 samples = 32 ms (what Silero expects)
@@ -42,127 +41,24 @@ def load_glossary():
     return ("Terms that may come up: " + ", ".join(words) + ".")[:600] if words else None
 
 
-# ---------- spoken commands (handled locally: the AI never sees them, zero tokens) ----------
-def use_llm():
-    s = CFG.get("summarizer", "auto")
-    return s == "llm" or (s == "auto" and llm.usable(CFG))
-
-
-def _llm_brief(raw):
-    if not llm.loaded():
-        tts_client.speak("One moment.")
-    try:
-        tts_client.speak(llm.summarize(raw, CFG))
-    except Exception as e:
-        print("  (local model failed, using the simple summary:", e, ")", flush=True)
-        tts_client.speak(textprep.speak_text(raw, "brief"))
-
-
-def speak_raw(raw, kind):
-    if kind == "brief" and use_llm():
-        threading.Thread(target=_llm_brief, args=(raw,), daemon=True).start()
-    else:
-        tts_client.speak(textprep.speak_text(raw, kind))
-
-
-def speak_last(kind, key, back=0):
-    """Read the last reply (back=0) or an earlier one (back=1: the one before that)."""
-    raw = ""
-    s = sessions.get(key)
-    if s and s.get("transcript"):
-        from . import agents
-        rs = agents.claude_replies(s["transcript"], back + 2)
-        raw = rs[-1 - back] if len(rs) > back else ""
-        if back and not raw:
-            tts_client.speak("There is no earlier reply.", JV())
-            return
-    raw = raw or textprep.load_last(key) or textprep.load_last(key.split(":")[-1])
-    if raw:
-        speak_raw(raw, kind)
-    else:
-        tts_client.speak("I have nothing to read yet.")
-
-
-HELP_SPOKEN = ("I read your AI's replies aloud. Say stop to quiet me, interrupt to stop the AI, read it all for the whole reply, "
-               "summarize that for a short one, or read everything from now on to change the default. Anything else goes to the AI.")
-
-
 STATE = {}
-
-
-def JV():
-    """Jarvis's own voice, so you can tell it apart from the agent's replies being read out."""
-    return CFG.get("jarvis_voice", "")
-
-
-def voice_command(text, sink, key):
-    """Handle the sentence if it is for us. Returns the text to forward to the AI, or None when it was handled here."""
-    talking = CFG.get("talk_to", "jarvis") == "jarvis" and llm.usable(CFG)
-    kind, val = intent.interpret(text, CFG, use_model=not talking)      # when you talk to Jarvis, the conversation step decides the rest
-    if kind == "forward":
-        if val != text:
-            print(f"  (cleaned up: {val})", flush=True)
-        return val
-    c = val
-    print(f"  (command: {c})", flush=True)
-    if c == "stop":
-        tts_client.stop()
-    elif c == "interrupt":
-        tts_client.stop()
-        sink.interrupt()
-    elif c in ("full", "brief"):
-        speak_last(c, key, 1 if jarvis._PREV.search(text) else 0)
-    elif c in ("clip_full", "clip_brief"):
-        raw = platform_.clipboard()
-        if raw.strip():
-            textprep.save_last("clipboard", raw)
-            speak_raw(raw, "full" if c == "clip_full" else "brief")
-        else:
-            tts_client.speak("The clipboard is empty.")
-    elif c == "help":
-        tts_client.speak(HELP_SPOKEN)
-    elif c in ("mode_full", "mode_brief"):
-        m = c.split("_")[1]
-        textprep.set_mode(m)
-        tts_client.speak("Okay, I'll read everything." if m == "full" else "Okay, summaries only.")
-    return None
-
-
-def route(cfg, default_sink):
-    """Which session gets this sentence: the one you are looking at, else the default sink."""
-    sess = sessions.current() if cfg.get("focus_follows", True) or len(sessions.all()) == 1 else None
-    if sess and sess.get("sink") not in ("", "none", None):
-        return sinks.for_session(cfg, sess), sess["id"], f"{sess.get('name') or sess['id'][:8]} via {sess['sink']}"
-    if sess:                                               # known session in a terminal we cannot address: type into the front window
-        return default_sink, sess["id"], f"{sess.get('name') or sess['id'][:8]} via default sink {cfg['sink']}"
-    key = default_sink.target() or "default"
-    return default_sink, key, f"default sink {cfg['sink']}"
 
 
 def main():
     cfg = config.load()
     CFG.update(cfg)
-    default_sink = sinks.get(cfg)
     glossary = load_glossary()
     end_silence, min_thr = float(cfg["end_silence"]), float(cfg["min_threshold"])
 
-    print(f"summaries: {'local model (' + (llm.backend(cfg) or '?') + ')' if use_llm() else 'simple (no local model; optional)'}", flush=True)
     print(f"loading speech model ({stt.backend_name(cfg)}: {stt.model_name(cfg)}; first run downloads it) ...", flush=True)
     tr = stt.Transcriber(cfg)
     tts_client.ensure_server()
-    agent = None
-    if not cfg.get("discover", False):                       # Jarvis is its own assistant: what you say goes to its brain, nowhere else
-        from . import brain
-        agent = assistant.Assistant()
-        print(f"assistant: answers come from {brain.describe(cfg)}; no tools, nothing on this machine is touched", flush=True)
-        if cfg.get("ui", True):
-            from . import ui
-            ui.start(agent, cfg)
-            print("window: run `jarvis-ai` to open it", flush=True)
-    if cfg.get("discover", False):
-        jarvis.Watcher(cfg, lambda raw: speak_raw(raw, textprep.get_mode()),
-                       announce=lambda line: tts_client.speak(line, JV())).start()
-        print("sessions: found automatically; replies are read from the agents' transcripts", flush=True)
+    agent = assistant.Assistant()
+    print(f"assistant: answers come from {brain.describe(cfg)}; no tools, nothing on this machine is touched", flush=True)
+    if cfg.get("ui", True):
+        from . import ui
+        ui.start(agent, cfg)
+        print("window: run `jarvis-ai` to open it", flush=True)
 
     q = queue.Queue()
     def on_audio(indata, frames, tinfo, status):
@@ -178,7 +74,7 @@ def main():
         floor = float(np.percentile(noise, 30))                     # ignore bursts (keys, a passing voice)
         thr = min(max(min_thr, floor * 5.0), float(cfg["max_threshold"]))
         wake = f", wake word: {cfg['wake_word']}" if cfg["wake_word"] else ""
-        print(f"listening (threshold {thr:.4f}{wake}). Say 'stop' to silence, 'interrupt' to stop the AI.", flush=True)
+        print(f"listening (threshold {thr:.4f}{wake}). Say 'stop' to silence it.", flush=True)
 
         recent = collections.deque(maxlen=int(2.0 * SR / BLOCK))      # ~2 s of the latest audio
         seg = vad.Segmenter(start=float(cfg["vad_start"]), end=float(cfg["vad_end"]), end_silence=end_silence,
@@ -219,9 +115,8 @@ def main():
             is_paused = os.path.exists(paused)
             if is_paused:
                 deaf_until = now + TTS_TAIL
-            if agent:
-                assistant.status("paused" if is_paused else "speaking" if on else "hearing" if seg.active
-                                 else "thinking" if agent.busy else "listening")
+            assistant.status("paused" if is_paused else "speaking" if on else "hearing" if seg.active
+                             else "thinking" if agent.busy else "listening")
 
             if on and not seg.active:
                 if not barge_in:
@@ -244,8 +139,7 @@ def main():
                                 echo_win.append((now, smooth))
                     if hot >= 8:                                 # ~0.25 s: you are talking over the voice
                         tts_client.stop()
-                        if agent:
-                            agent.interrupt()                    # also drop the rest of the answer being written
+                        agent.interrupt()                        # also drop the rest of the answer being written
                         print(f"  (barge-in: level {smooth:.3f} vs echo {echo:.3f})", flush=True)
                         hot, deaf_until = 0, 0.0
                         seg.start_from(list(recent)[-45:])           # keep ~1.4 s from before we noticed: your first words
@@ -276,7 +170,7 @@ def main():
                 fr = STATE.pop("fragment", None)
                 if fr and time.time() - fr[1] < 12:              # the rest of a sentence you paused in
                     text = fr[0] + " " + text
-                if jarvis.dangling(text):
+                if textprep.dangling(text):
                     STATE["fragment"] = (re.sub(r"[.\u2026\s]+$", "", text), time.time())
                     print(f"> {text}   (waiting for the rest)", flush=True)
                     continue
@@ -296,80 +190,8 @@ def main():
                 else:
                     awake_until = time.time() + wake_window
 
-            if agent:
-                print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe]", flush=True)
-                agent.hear(jarvis.addressed(text, cfg) or text)   # "Jarvis, ..." and plain sentences are the same thing here
-                continue
-            rest = jarvis.addressed(text, cfg)
-            if rest is not None:
-                print(f"> {text}   [to {cfg['name']}]", flush=True)
-                if not rest:
-                    tts_client.speak("Yes?")
-                    continue
-                if jarvis.handle(rest, cfg, say_reply=lambda raw: speak_raw(raw, "brief")):
-                    continue
-                text = rest                                      # not one of Jarvis's own commands: treat it like any sentence
-            sink, key, where = route(cfg, default_sink)
-            print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe] -> {where}", flush=True)
-            pend = STATE.pop("pending", None)                   # Jarvis asked "shall I ask Claude?": a plain yes sends it, once
-            if pend and time.time() < pend[2]:
-                if gate.is_yes(text) or jarvis.casual_yes(text):
-                    print(f"> {text}   [yes: sent to the agent: {pend[0]}]", flush=True)
-                    pend[1].send(pend[0])
-                    tts_client.speak("Asking now.", JV())
-                    continue
-                if gate._NO.match(text.lower().strip()):
-                    print(f"> {text}   [no]", flush=True)
-                    tts_client.speak("Very well.", JV())
-                    continue
-                if jarvis._IN_HISTORY.search(text):               # "but it's already in the history": look harder before asking again
-                    print(f"> {text}   [looking again in the conversation]", flush=True)
-                    kind, words = jarvis.talk(pend[0], sessions.get(key), cfg, lambda s: tts_client.speak(s, JV()), None, deep=True)
-                    if kind == "say":
-                        print(f"  (Jarvis: {words})", flush=True)
-                        tts_client.speak(words, JV())
-                    else:
-                        STATE["pending"] = (pend[0], pend[1], time.time() + 25, pend[3])
-                        tts_client.speak("I can't find that in what I've seen. Shall I ask?", JV())
-                    continue
-                if len(text.split()) <= 4 and not textprep.classify(text) and pend[3] < 2:
-                    # a short reply that is neither yes nor no: do not treat it as a new request, ask once more
-                    STATE["pending"] = (pend[0], pend[1], time.time() + 25, pend[3] + 1)
-                    print("  (Jarvis: Was that a yes?)", flush=True)
-                    tts_client.speak("Sorry, was that a yes?", JV())
-                    continue
-            m = jarvis._TO_AGENT.match(text.strip())
-            if m:                                                # "ask Claude": skip Jarvis, go straight to the agent
-                text = m.group(1).strip() or STATE.get("last_local", "")
-                if not text:
-                    tts_client.speak("Ask it what?", JV())
-                    continue
-                print(f"  (to the agent: {text})", flush=True)
-                sink.send(text)
-                continue
-            fwd = voice_command(text, sink, key)
-            if fwd is None:
-                continue
-            if cfg.get("talk_to", "jarvis") == "jarvis":         # you talk to Jarvis; it answers, or asks before using the agent
-                sess = sessions.get(key)
-                mem = STATE.setdefault("memory", [])
-                kind, words = jarvis.talk(fwd, sess, cfg, lambda s: tts_client.speak(s, JV()), mem)
-                if kind == "say":
-                    mem.append((fwd, words))
-                    del mem[:-4]
-                    STATE["last_local"] = fwd                    # "ask Claude" after this sends the same sentence on
-                    print(f"  (Jarvis: {words})", flush=True)
-                    tts_client.speak(words, JV())
-                    continue
-                if llm.usable(cfg) and cfg.get("confirm_agent", "always") == "always":
-                    STATE["pending"] = (fwd, sink, time.time() + 25, 0)
-                    line = jarvis.ask_line(sess)
-                    print(f"  (Jarvis: {line})", flush=True)
-                    tts_client.speak(line, JV())
-                    continue
-            sink.send(fwd)
-            while not q.empty():
-                q.get()
+            print(f"> {text}   [{len(audio)/SR:.1f}s audio, {time.time()-t0:.1f}s to transcribe]", flush=True)
+            agent.hear(textprep.addressed(text, cfg) or text)    # "Jarvis, ..." and a plain sentence are the same thing here
 
 
 def run():

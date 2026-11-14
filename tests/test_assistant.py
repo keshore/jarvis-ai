@@ -146,7 +146,7 @@ def test_window_settings_and_keys(window, home):
     assert code == 200 and st["settings"]["claude_model"] == "claude-haiku-5-5"
     saved = json.loads((home / "settings.json").read_text())
     assert saved == {"voice": "af_bella", "claude_model": "claude-haiku-5-5"}                # only the listed settings can be changed from the window
-    assert config.load()["claude_model"] == "claude-haiku-5-5" and config.load()["approval"] == "dialog"
+    assert config.load()["claude_model"] == "claude-haiku-5-5"
     code, body, _ = call(url, "/key", {"name": "anthropic", "value": "sk-ant-secret"}, token, h)
     assert code == 400 and "sk-ant-secret" not in body                                       # no credential store in the test: refused, not written to disk
     assert "sk-ant-secret" not in "".join(p.read_text() for p in home.iterdir() if p.is_file())

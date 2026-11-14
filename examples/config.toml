@@ -1,9 +1,10 @@
-# Copy to ~/.jarvis-ai/config.toml
-stt_model = "mlx-community/whisper-small.en-mlx"   # or mlx-community/whisper-large-v3-turbo
-voice = "af_bella"          # Kokoro voices: af_heart af_bella af_nicole am_michael bf_emma bm_george
+# Copy to ~/.jarvis-ai/config.toml. Most of these can also be changed in the window (Settings).
+voice = "af_bella"          # see Settings for the list of voices
 speed = 1.05
-sink = "iterm"              # iterm | tmux | keystroke | exec | stdout
-mode = "brief"              # automatic speech: brief | full
-end_silence = 1.1
-# exec_cmd = "ollama run llama3.2"     # sink = "exec": text on stdin, reply is printed and spoken
-# app = "Google Chrome"                # sink = "keystroke": bring this app to front before typing
+brain = "auto"              # auto | claude | openai | local
+claude_model = "claude-opus-5-5"
+retention_days = 30         # -1 = save nothing, 0 = keep until deleted, N = days
+end_silence = 1.1           # raise to 1.5 to 2 if you pause to think
+# wake_word = "hey jarvis"  # ignore speech until you say it
+# call_me = "sir"
+# persona = "cheerful and brief"

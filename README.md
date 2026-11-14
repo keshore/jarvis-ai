@@ -1,242 +1,139 @@
 # jarvis-ai
 
-[![PyPI](https://img.shields.io/pypi/v/jarvis-ai)](https://pypi.org/project/jarvis-ai/)
-[![Python](https://img.shields.io/pypi/pyversions/jarvis-ai)](https://pypi.org/project/jarvis-ai/)
-[![tests](https://github.com/keshore/jarvis-ai/actions/workflows/test.yml/badge.svg)](https://github.com/keshore/jarvis-ai/actions/workflows/test.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/keshore/jarvis-ai/blob/main/LICENSE)
-
 **A voice assistant that lives on your own computer.** You talk, it answers out loud, and you can talk over it.
 
 - **Your voice stays here.** Speech recognition ([Whisper](https://github.com/openai/whisper)) and the voice
   ([Kokoro](https://github.com/hexgrad/kokoro)) run on your machine. Audio is never sent anywhere.
 - **Pick the brain.** With no setup the answers come from a model on your machine, and nothing leaves it. Add a Claude or OpenAI
   API key and the answers come from that service instead: then the *text* of what you say is sent to it, the audio still is not.
-- **Its own window.** Run `jarvis-ai` and a window opens: what it heard, what it said, a box to type in, and the settings.
+- **Its own window.** Run `jarvis-ai` and a window opens: the conversation, a box to type in, your past conversations and the settings.
+- **History you control.** Conversations are kept in one file on this computer that only you can read, for as long as you choose
+  (30 days by default, or not at all). Search, rename, export or delete them.
 - **No tools.** Jarvis only talks. It cannot open apps, read files, run commands or change anything on your computer, and it says so
   when asked.
 - **Talk over it.** Start speaking and it stops and listens. Say "stop" to silence it.
 - **Keys are kept safe.** An API key goes into your system's credential store (Keychain, Credential Manager, Secret Service), never
   into a file or a log, and the window can store or remove it but never show it.
 
+Looking for voice in Claude Code, Codex or other AI tools? That is a separate project, aivoice.
+
 > **Status: early, not released.** Developed and tested on macOS with Apple Silicon. Linux, Intel Macs and Windows are supported by
 > design and the portable logic is unit-tested on all three in CI, but the audio path has not been exercised there yet. The window is
 > a page in your browser for now; a packaged app with an installer comes later.
 
-> **The earlier design is switched off.** Jarvis used to find Claude Code sessions on your machine, type your speech into them and
-> read their replies. That code is still here behind `discover = true`, and the sections below about sessions, sinks and approval
-> describe it. With the default settings none of it runs.
-
 ## Install
 
-**1. The engine.** Any machine with Python 3.10 to 3.13 (not 3.14 yet):
+Any machine with Python 3.10 to 3.13 (not 3.14 yet):
 
 ```bash
-pipx install --python python3.12 jarvis-ai      # brew install pipx   (or: pip install pipx)
-jarvis-ai setup                                 # one-time download: voice ~330 MB + Whisper model ~1.6 GB
-jarvis-ai doctor                                # checks microphone, speakers and models
+pipx install --python python3.12 git+https://github.com/mintlime-in/jarvis-ai
+jarvis-ai setup --llm        # one-time download: voice, Whisper and a local model sized to your memory
+jarvis-ai                    # starts it and opens the window
 ```
 
-No pipx? From a clone, `./install.sh` does the same with a private virtual environment:
+**Optional: echo cancellation**, so you can talk over it when it plays through speakers (headphones do not need it):
+`pipx inject jarvis-ai aec-audio-processing` (Python 3.11+). It builds a small C++ library, so macOS needs the Xcode Command Line Tools
+and Linux a compiler; Windows has a prebuilt wheel.
 
-```bash
-git clone https://github.com/keshore/jarvis-ai && cd jarvis-ai && ./install.sh
-```
-
-**2. Start it:** `jarvis-ai on`. It finds running Claude Code sessions by itself, in any terminal or app. In iTerm2 and tmux it reaches the exact tab or pane; in any
-other app on macOS (Terminal, VS Code, Warp, Ghostty ...) it works through that app's window; elsewhere it types into the window in front. `jarvis-ai off` stops it.
-
-**Start at login:** `jarvis-ai login on`. It writes one per-user file (a LaunchAgent on macOS, an autostart entry
-on Linux, a Startup script on Windows) and respects `jarvis-ai off`. `jarvis-ai login off` removes it. Written and tested as a file;
-not yet verified across a real logout and login.
-
-**Optional: echo cancellation**, so you can interrupt the voice when it plays through speakers (headphones do not need it):
-`pipx inject jarvis-ai aec-audio-processing` (or `pip install 'jarvis-ai[aec]'`; Python 3.11+). It builds a small C++ library, so macOS needs the
-Xcode Command Line Tools and Linux a compiler; Windows has a prebuilt wheel. Without it everything still works, with a weaker interruption check.
-
-**Permissions (macOS):** allow the microphone for your terminal app the first time. Controlling iTerm2 or typing into other apps
-asks for *Automation* / *Accessibility* access. **Linux:** `sudo apt install libportaudio2`. For the `keystroke` sink on Linux or
-Windows also `pip install 'jarvis-ai[keys]'`.
+**Permissions:** allow the microphone the first time. **Linux:** `sudo apt install libportaudio2`.
 
 ## Using it
 
-Just talk. Say **"stop"** to silence the voice and **"interrupt"** to stop the AI's current turn.
+Open the window with `jarvis-ai`, then just talk. "Jarvis, ..." and a plain sentence are the same thing.
 
-| Say | Does (handled locally, never sent to the AI) |
+| In the window | Does |
 |---|---|
-| "read it all" / "read everything" | reads the whole last reply |
-| "summarize that" / "give me the summary" | reads a short version (uses the local LLM if you have one) |
-| "read everything from now on" / "summaries only from now on" | sets the default for every reply |
-| "read the clipboard" / "summarize the clipboard" | reads what you copied (for apps Jarvis cannot read) |
-| "stop" | silences the voice |
-| "interrupt" / "cancel that" | silences it and presses Escape in the AI |
-
-You do not need the exact words: "read me the whole thing", "say it all", "give me the short version" also work, with no model.
-With the optional local LLM, other short requests ("I'd like to hear everything it said") are understood too.
-Anything that names something else, like "summarize the auth file", goes to the AI as normal.
+| Type in the box | the same as saying it. Enter sends, Shift+Enter adds a line, Esc stops the voice |
+| Microphone on / off | stops listening without quitting |
+| Copy, Say again | under each answer |
+| New conversation | starts fresh; the old one stays in the list |
+| A past conversation | opens it and lets you carry on where you left off |
+| The badge at the top | says whether your words stay on this computer or go to a cloud service |
 
 ```bash
+jarvis-ai            # start and open the window
 jarvis-ai off        # stop everything and keep it off
-jarvis-ai on         # turn it back on
-jarvis-ai status     # what is running, which sessions, which model
+jarvis-ai status     # what is running, which models, where answers come from
+jarvis-ai login on   # start when you log in
 ```
-`JARVIS_AI_DISABLE=1` keeps voice off for a single session.
 
-### You talk to Jarvis, Jarvis talks to the agent
+## Where answers come from
 
-With a local model, what you say goes to Jarvis first (`talk_to = "jarvis"`, the default), not straight into the agent:
+| Brain | When | What leaves your computer |
+|---|---|---|
+| Local model | default, after `jarvis-ai setup --llm` | nothing |
+| Claude | you saved a Claude API key (from platform.claude.com) in Settings | the text of the conversation, sent to Anthropic |
+| OpenAI | you saved an OpenAI key and a model name in Settings | the text of the conversation, sent to OpenAI |
 
-- **Small talk** ("good morning", "tell me a joke") is answered by Jarvis in character. This step never sees your project, so it cannot misstate it.
-- **Questions about the work** ("how many tests pass?", "explain that more simply", "summarize what it said about the upload") are answered
-  from the session's own conversation, and only when the answer is stated there.
-- **Anything else** (a task, or a question the conversation does not answer): Jarvis asks *"That one needs Claude. Shall I ask?"* A plain
-  **yes** sends your words to the agent; **no** drops it. "Ask Claude ..." sends directly.
-- "Summarize the previous response" and "read the one before that" reach back to earlier replies.
+With a key saved, "Automatic" uses the cloud; set "Use" to "Local model only" to keep everything here. Answers from Claude stream in and
+are spoken sentence by sentence; the local model answers in one piece.
 
-Everything is spoken in one voice (`voice`, a British male voice by default). Set `jarvis_voice` to another Kokoro voice if you want Jarvis's
-own words to sound different from the agent's replies being read out. Set `persona` and `call_me`
-to change its character and what it calls you. `talk_to = "agent"` restores plain dictation; `confirm_agent = "never"` passes things on without asking.
-Without a local model it behaves like `talk_to = "agent"`.
-
-Measured with Qwen3-8B on a test conversation (28 sentences): no invented facts; it answered or chatted where it could and asked for the rest.
-Qwen3-4B invented an answer twice, so the larger model is the default where memory allows (`llm_model = "auto"`).
-
-### Commands for Jarvis itself
-
-Start a sentence with the name (`name` in the config, default "jarvis"):
-
-| Say | Does |
-|---|---|
-| "Jarvis, what's open?" | lists your sessions and whether each is working or idle |
-| "Jarvis, switch to the portal session" | brings that tab or pane to the front (iTerm2, tmux) |
-| "Jarvis, is the portal session done?" | working or finished |
-| "Jarvis, read the portal session's reply" | reads that session's last reply |
-| "Jarvis, ask the portal session to run the tests" | shows an approval window with the exact text, then types it there |
-| "Jarvis, open a session in the portal project" | finds the folder, shows an approval window with the command and path, then opens a new tab running your agent (`open_cmd`, default `claude`; "start a codex session in ..." picks another) |
-
-With a local model, looser wording works too ("have the portal one rebuild the image"). The model only fills in a form; code checks that
-the session is one you named and that the message is made of your own words.
-
-Sessions are matched by project folder or session name. If two match equally, or none, Jarvis says so and does nothing.
-What you dictate to the session in front is typed as you said it. Everything else that would type somewhere needs your approval:
-a window with **Approve** / **Cancel** (Cancel is the default, no answer means no). Every proposal and decision is written to
-`~/.jarvis-ai/audit.log`. `approval = "voice"` allows a spoken "yes" instead: weaker, because anyone who can be heard can say it.
-
-### Several sessions
-
-Your speech goes to **the session you are looking at** (the iTerm tab in front, or the desktop app in front), and only that session
-reads its reply aloud. When a background session finishes, Jarvis says only "<session> has finished." and saves the reply, so
-"read it all" works once you switch to it. `announce = false` keeps it silent.
-
-## Any other agent
-
-| You want | Use |
-|---|---|
-| Read any command's output aloud | `some-agent ... \| jarvis-ai speak` |
-| Any interactive CLI | `jarvis-ai run -- aider` (voice in and out; macOS, Linux, WSL) |
-| A desktop or browser chat window | speech is typed into the focused window (`keystroke` sink); copy a reply and say "read the clipboard" |
-| Talk to a local model directly | `jarvis-ai on --sink llm` (needs the optional LLM) |
-
-Where your speech goes is called a *sink*: `iterm`, `tmux`, `keystroke` (types into whatever has focus, so mind where the cursor is),
-`pty`, `exec`, `llm`, `stdout`.
-
-## Optional local LLM
-
-Nothing needs it. When one is available, "summarize that" uses it instead of the rule-based summary.
+The local model:
 
 - **Apple Silicon:** `pipx inject jarvis-ai mlx-lm` (or `pip install 'jarvis-ai[llm]'`), then `jarvis-ai setup --llm`.
-  Qwen3-4B, 2.3 GB, loaded on demand and unloaded after five idle minutes. `llm_model = "auto"` picks a size by memory
+  Loaded on demand and unloaded after five idle minutes. `llm_model = "auto"` picks a size by memory
   (1.7B under 12 GB, 4B under 22 GB, 8B above); any MLX model name works.
 - **Windows, Linux, Intel Macs:** `jarvis-ai setup --llm`. It installs llama.cpp into Jarvis itself (a prebuilt package, nothing to
   compile), fetches a Qwen3 model sized to your memory (1.7B, 4B or 8B) and checks that it answers. If that fails on your machine it
   falls back to [Ollama](https://ollama.com) and offers to install it with your system's installer; nothing is installed without a
   typed yes. Run on a Mac only so far; not yet verified on a real Windows or Linux machine.
-- **Any other local server** that speaks the OpenAI chat API (llama.cpp, LM Studio, vLLM, Jan): set `llm_url`, e.g.
+- **Any other local server** that speaks the OpenAI chat API (LM Studio, vLLM, Jan): set `llm_url`, e.g.
   `llm_url = "http://127.0.0.1:8080/v1"` (and `llm_api_model` if the server wants a model name). A key, if needed, is read from the
   `JARVIS_AI_LLM_KEY` environment variable. Keep the address on `127.0.0.1`: a server elsewhere receives what you say.
 
-### The local model between you and the AI (`frontend`)
+## Settings
 
-The local model can only pick from a fixed list of actions, and everything spoken back comes from fixed text, so it cannot make up an answer. If it is unsure, slow (`frontend_timeout`, 6 s), unavailable or answers in
-a wrong format, your sentence goes to the AI exactly as you said it. At `assistant` level a cleaned-up sentence is used only if it stays
-close to what you said, and the listener log shows `(cleaned up: ...)`, `(command: ...)` or `(answered locally: ...)` for every decision.
-Each sentence waits for the model first (about a second on a 3 to 4B model), so `commands` limits this to short sentences.
-
-## Configuration
-
-`~/.jarvis-ai/config.toml` (see the [example](https://github.com/keshore/jarvis-ai/blob/main/examples/config.toml)) and
-`~/.jarvis-ai/glossary.txt` (names Whisper should recognise: project names, libraries, people). Any key can be overridden with
-`JARVIS_AI_<KEY>`.
+Most settings are in the window. The rest live in `~/.jarvis-ai/config.toml`, and any key can be overridden with `JARVIS_AI_<KEY>`.
 
 | Key | Default | Use |
 |---|---|---|
-| `end_silence`, `end_silence_short` | 1.1, 0.6 | how long a pause ends a sentence (raise to 1.5 to 2 if you speak slowly or pause to think), and the shorter wait after a one-word command |
-| `wake_word` | none | e.g. `"hey claude"`: ignore everything until you say it, then stay awake for `wake_window` seconds |
+| `brain` | auto | `auto`, `claude`, `openai` or `local` |
+| `claude_model`, `openai_model` | claude-opus-5-5, none | which cloud model answers |
+| `retention_days` | 30 | `-1` saves nothing, `0` keeps until you delete, otherwise days |
+| `voice`, `speed`, `speak_answers` | af_bella, 1.05, true | the voice, its speed, and whether answers are spoken at all |
+| `name`, `call_me`, `persona` | jarvis, none, calm and dry-witted | its name, what it calls you, its character |
+| `end_silence`, `end_silence_short` | 1.1, 0.6 | how long a pause ends a sentence; raise to 1.5 to 2 if you pause to think |
+| `wake_word` | none | e.g. `"hey jarvis"`: ignore everything until you say it |
 | `stt_model` | big (large-v3-turbo) | on a slow CPU set a smaller one such as `"small.en"` |
-| `vad` | silero | `silero` (neural speech detector, recommended) or `volume` (plain loudness gate) |
-| `echo_cancel`, `aec_delay_ms` | auto, 150 | echo cancellation when installed; the speaker-to-microphone delay of your machine (150 fits a MacBook Pro) |
-| `barge_ratio` | 2.2 | only without echo cancellation: how much louder than the echo you must be to interrupt |
-| `name` | jarvis | the word that addresses the assistant itself; `""` turns that off |
-| `open_cmd`, `project_dirs` | claude, common folders | what "open a session" starts, and where your projects live |
-| `discover` | true | find agent sessions and read their replies |
-| `approval` | dialog | `dialog` (click to approve) or `voice` (say yes; weaker) |
-| `talk_to`, `confirm_agent` | jarvis, always | talk to Jarvis first (or `agent` for plain dictation); ask before passing things to the agent |
-| `persona`, `call_me`, `jarvis_voice` | dry-witted British assistant, none, none | Jarvis's character, what it calls you, its Kokoro voice |
-| `frontend` | commands | `off`: exact phrases only. `commands`: loose wording, plus the local LLM for short unusual requests. `assistant`: the local LLM sees every sentence, of any length: it can run a command or forward your sentence lightly cleaned of dictation slips |
-| `mode` | brief | `brief` or `full` |
-| `voice`, `speed` | af_bella, 1.05 | Kokoro voice and speed |
+| `echo_cancel`, `aec_delay_ms` | auto, 150 | echo cancellation when installed; the speaker-to-microphone delay of your machine |
 
-## Privacy
+## Privacy and security
 
-The microphone feeds a local volume detector and a local Whisper model. The only network use is the one-time model download (GitHub
-releases and Hugging Face). There is no telemetry. The microphone is open while it runs: `touch ~/.jarvis-ai/.paused` pauses
-it and `jarvis-ai off` ends it. The voice daemon listens on `127.0.0.1` only and requires a secret token that changes on every start.
+- Audio is turned into text on this computer. The only network use without a cloud key is the one-time model download.
+- With a cloud key, the text of the conversation goes to that service, and the window says so at the top.
+- History is one SQLite file (`~/.jarvis-ai/history.db`) readable only by your account, kept for `retention_days`. "Delete all
+  conversations" also compacts the file so the words are gone from disk. It is protected by file permissions, not encrypted.
+- The window is served on `127.0.0.1` only, needs a secret made at each start, rejects other websites, and can never show a saved key.
+- No telemetry.
 
 ## Troubleshooting
 
 | Symptom | Try |
 |---|---|
-| Nothing happens when I talk | `jarvis-ai status`, then read `~/.jarvis-ai/listener.log`. A line `(ignored, start with 'hey claude')` means a wake word is set. |
-| No sound | check the system volume is not muted; `jarvis-ai doctor` checks the speakers; log: `~/.jarvis-ai/tts.log` |
-| Typing by voice works but replies are silent | `jarvis-ai status` should list the session; if it does not, Jarvis has not found it (see Known limits). A session you are not looking at only announces that it finished. |
-| The voice interrupts itself | install the echo cancellation extra, or raise `barge_ratio` (try 3), or use headphones |
-| It does not notice me talking over it | install the echo cancellation extra (speakers feed the voice back into the mic), or use headphones; tune `aec_delay_ms` |
-| It picks up other people talking nearby | set a `wake_word`. Fans, keyboards and music are already ignored by the speech detector. |
-| `pipx` or install fails on Python 3.14 | pass `--python python3.12`; 3.14 is not supported yet |
-| First start is slow | the Whisper model loads on every start (about ten seconds); it stays loaded while a session is open |
-
-## Known limits
-
-- Without the echo cancellation extra, interrupting on laptop speakers relies on a loudness heuristic that can miss you. Headphones are always reliable.
-- With it, the first second or so of an interruption can be clipped, and `aec_delay_ms` is tuned on one MacBook Pro; other machines may need a different value.
-- The speech detector separates speech from noise, not one speaker from another: use a `wake_word` if people talk near you.
-- `jarvis-ai run` needs a Unix pseudo-terminal (macOS, Linux, WSL). Full-screen terminal UIs redraw constantly, so its output is noisy to read aloud.
-- Finding sessions reads Claude Code's own session list and transcripts. These are internal files and may change with a Claude Code update. Other agents use `run` or a pipe.
-- Picking one tab among several needs iTerm2 or tmux. In other apps Jarvis can bring the app to the front, and types into a session that is not in front only when it is the only session in that app.
-- Reading replies aloud needs a transcript (Claude Code), a pipe, `run` or the clipboard. Chat apps in a window expose none, so there is no automatic
-  read-back there yet.
+| The window says nothing can answer | run `jarvis-ai setup --llm`, or save a key in Settings |
+| Nothing happens when I talk | the microphone button may be off; then read `~/.jarvis-ai/listener.log` |
+| No sound | check the system volume; `jarvis-ai doctor` checks the speakers; log: `~/.jarvis-ai/tts.log` |
+| It interrupts itself | install echo cancellation, or use headphones |
+| It picks up people talking nearby | set a `wake_word` |
+| Install fails on Python 3.14 | pass `--python python3.12` |
 
 ## How it works
 
 ```
- mic -> Whisper (local) -> spoken command? -- yes --> handled here, the AI never sees it
-                                  | no
-                                  v
-                   the session you are looking at -> your AI
-
- your AI's reply -> transcript / pipe / run / clipboard -> brief or full -> Kokoro voice (local) -> speakers
+ mic -> speech detector -> Whisper (local) -> the brain (local model, or Claude / OpenAI with your key) -> Kokoro voice (local) -> speakers
+                                                     |
+                                       window and history (this computer only)
 ```
 
-More in the [architecture notes](https://github.com/keshore/jarvis-ai/blob/main/docs/ARCHITECTURE.md) and the
-[roadmap](https://github.com/keshore/jarvis-ai/blob/main/ROADMAP.md).
+More in the [architecture notes](docs/ARCHITECTURE.md) and the [roadmap](ROADMAP.md).
 
 ## Contributing
 
 ```bash
-git clone https://github.com/keshore/jarvis-ai && cd jarvis-ai
+git clone https://github.com/mintlime-in/jarvis-ai && cd jarvis-ai
 pip install -e '.[dev]' && pytest
 ```
-Issues and pull requests are welcome, especially reports from Linux, Windows and Intel Macs.
 
 ## License
 
-[MIT](https://github.com/keshore/jarvis-ai/blob/main/LICENSE)
+[MIT](LICENSE)

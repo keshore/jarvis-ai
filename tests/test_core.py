@@ -1,59 +1,14 @@
-import importlib, json, os, socket, sys, threading, time
+import importlib, json, os, socket, sys, threading
 import pytest
 
 
 @pytest.fixture
 def lv(tmp_path, monkeypatch):
     monkeypatch.setenv("JARVIS_AI_HOME", str(tmp_path))
-    from jarvis_ai import config, sessions, textprep, tts_client
-    for m in (config, sessions, textprep, tts_client):
+    from jarvis_ai import config, textprep, tts_client
+    for m in (config, textprep, tts_client):
         importlib.reload(m)
     return tmp_path
-
-
-def test_session_registry(lv):
-    from jarvis_ai import sessions
-    s = {"id": "abc", "sink": "iterm", "target": "T1", "app": "", "term": "T1"}
-    sessions.register(s)
-    assert sessions.get("abc")["target"] == "T1"
-    assert [x["id"] for x in sessions.all()] == ["abc"]
-    sessions.remove("abc")
-    assert sessions.get("abc") is None and sessions.all() == []
-
-
-def test_router_follows_focus(lv, monkeypatch):
-    from jarvis_ai import sessions, platform_
-    sessions.register({"id": "a", "sink": "iterm", "target": "TA", "app": "", "term": "TA"})
-    sessions.register({"id": "b", "sink": "iterm", "target": "TB", "app": "", "term": "TB"})
-    sessions.register({"id": "c", "sink": "keystroke", "target": "", "app": "Claude", "term": ""})
-    monkeypatch.setattr(platform_, "front_app", lambda: "iTerm2")
-    monkeypatch.setattr(platform_, "iterm_focused", lambda: "TB")
-    assert sessions.current()["id"] == "b"
-    monkeypatch.setattr(platform_, "iterm_focused", lambda: "TA")
-    assert sessions.current()["id"] == "a"
-    monkeypatch.setattr(platform_, "front_app", lambda: "Claude")          # a desktop app is in front
-    assert sessions.current()["id"] == "c"
-
-
-def test_router_falls_back_to_last_used(lv, monkeypatch):
-    from jarvis_ai import sessions, platform_, config
-    sessions.register({"id": "a", "sink": "tmux", "target": "%1", "app": "", "term": ""})
-    sessions.register({"id": "b", "sink": "tmux", "target": "%2", "app": "", "term": ""})
-    monkeypatch.setattr(platform_, "front_app", lambda: "Safari")
-    assert sessions.current() is None                                       # ambiguous
-    config.write_state("last_session", "b")
-    assert sessions.current()["id"] == "b"
-
-
-def test_detect_picks_sink_from_environment(lv, monkeypatch):
-    from jarvis_ai import sessions, platform_
-    monkeypatch.delenv("ITERM_SESSION_ID", raising=False)
-    monkeypatch.setenv("TMUX_PANE", "%7")
-    assert sessions.detect("x")["sink"] == "tmux"
-    monkeypatch.delenv("TMUX_PANE")
-    monkeypatch.setattr(platform_, "front_app", lambda: "Some App")
-    s = sessions.detect("y")
-    assert s["sink"] == "keystroke" and s["app"] == "Some App"
 
 
 def test_last_reply_roundtrip(lv):
@@ -105,39 +60,7 @@ def test_voice_daemon_rejects_bad_token(lv):
         assert oct(os.stat(config.path("tts.port")).st_mode & 0o777) == "0o600"
 
 
-def test_clean_output_strips_terminal_noise():
-    from jarvis_ai import ptyrun
-    raw = b"\x1b[2K\rthinking...\r\x1b[32mHere is the answer.\x1b[0m\r\n\xe2\x94\x80\xe2\x94\x80\xe2\x94\x80\r\nSecond line.\r\nSecond line.\r\n"
-    assert ptyrun.clean_output(raw) == "Here is the answer.\nSecond line."
-
-
 @pytest.mark.skipif(sys.platform.startswith("win"), reason="needs a Unix pseudo-terminal")
-def test_pty_wrapper_end_to_end(lv, monkeypatch, tmp_path):
-    """Run a tiny echo REPL under `jarvis-ai run`, inject a sentence over the control socket, read its reply."""
-    import subprocess
-    env = dict(os.environ, JARVIS_AI_HOME=str(lv))
-    prog = "import sys\nfor l in sys.stdin:\n    print('REPLY TO: ' + l.strip(), flush=True)\n"
-    p = subprocess.Popen([sys.executable, "-m", "jarvis_ai.cli", "run", "--no-speak", "--",
-                          sys.executable, "-u", "-c", prog], env=env, stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    from jarvis_ai import sessions, sinks, config
-    importlib.reload(sessions)
-    deadline, s = time.time() + 8, None
-    while time.time() < deadline and not s:
-        time.sleep(0.2)
-        ss = sessions.all()
-        s = ss[0] if ss else None
-    if not s:
-        p.kill(); print(p.stderr.read().decode())
-    assert s and s["sink"] == "pty"
-    sinks.for_session(config.load(), s).send("hello world")
-    time.sleep(1.0)
-    p.stdin.close()
-    out = p.stdout.read().decode()
-    p.wait(timeout=10)
-    assert "REPLY TO: hello world" in out
-
-
 def test_default_model_is_the_big_one():
     from jarvis_ai import config, stt
     cfg = config.DEFAULTS
@@ -159,14 +82,6 @@ def test_cli_help_hides_plumbing_and_suggests(capsys, monkeypatch):
     with pytest.raises(SystemExit) as e:
         cli.main()
     assert "setup" in str(e.value) and "status" in str(e.value)
-
-
-def test_stale_sessions_are_forgotten(tmp_path, monkeypatch):
-    monkeypatch.setenv("JARVIS_AI_HOME", str(tmp_path))
-    from jarvis_ai import sessions
-    sessions.register({"id": "old", "sink": "iterm", "target": "T", "created": time.time() - 13 * 3600})
-    sessions.register({"id": "fresh", "sink": "iterm", "target": "U", "created": time.time() - 13 * 3600, "seen": time.time()})
-    assert [s["id"] for s in sessions.all()] == ["fresh"]
 
 
 def test_old_localvoice_folder_is_moved_once(tmp_path, monkeypatch):
