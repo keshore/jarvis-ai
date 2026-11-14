@@ -106,15 +106,15 @@ label { display: block; font-size: 14px; margin: 12px 0 4px; }
     </select>
 
     <h3>Claude</h3>
-    <label for="k-anthropic">API key <span class="saved" id="s-anthropic"></span></label>
-    <div class="row"><input class="field" id="k-anthropic" type="password" autocomplete="off" placeholder="Paste a key from platform.claude.com">
+    <label for="k-anthropic">API key, from platform.claude.com <span class="saved" id="s-anthropic"></span></label>
+    <div class="row"><input class="field" id="k-anthropic" type="password" autocomplete="off" placeholder="Paste your key">
       <button class="btn" data-save="anthropic">Save key</button><button class="btn" data-remove="anthropic">Remove</button></div>
     <label for="claude_model">Model</label>
     <input class="field" id="claude_model" data-setting>
 
     <h3>OpenAI</h3>
-    <label for="k-openai">API key <span class="saved" id="s-openai"></span></label>
-    <div class="row"><input class="field" id="k-openai" type="password" autocomplete="off" placeholder="Paste a key from platform.openai.com">
+    <label for="k-openai">API key, from platform.openai.com <span class="saved" id="s-openai"></span></label>
+    <div class="row"><input class="field" id="k-openai" type="password" autocomplete="off" placeholder="Paste your key">
       <button class="btn" data-save="openai">Save key</button><button class="btn" data-remove="openai">Remove</button></div>
     <label for="openai_model">Model</label>
     <input class="field" id="openai_model" data-setting placeholder="The model name your account offers">
@@ -215,7 +215,7 @@ $("bar").addEventListener("submit", (e) => {
 $("stop").onclick = () => act(() => post("/stop"));
 $("clear").onclick = () => act(() => post("/clear"));
 $("mic").onclick = () => act(() => post("/mic", { on: status === "paused" }));
-$("open").onclick = () => { $("settings").showModal(); act(() => fetch("/state").then((r) => r.json())); };
+$("open").onclick = () => { $("settings").showModal(); document.querySelector(".sheet").scrollTop = 0; act(() => fetch("/state").then((r) => r.json())); };
 $("close").onclick = () => $("settings").close();
 $("brain").onchange = () => act(() => post("/settings", { brain: $("brain").value }));
 for (const el of document.querySelectorAll("[data-setting]"))

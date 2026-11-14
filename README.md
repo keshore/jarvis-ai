@@ -5,21 +5,26 @@
 [![tests](https://github.com/keshore/jarvis-ai/actions/workflows/test.yml/badge.svg)](https://github.com/keshore/jarvis-ai/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/keshore/jarvis-ai/blob/main/LICENSE)
 
-**Talk to your AI agent hands-free and hear its answers, entirely on your own machine.**
-Speech recognition ([Whisper](https://github.com/openai/whisper)) and the voice ([Kokoro](https://github.com/hexgrad/kokoro)) are local
-models. What you say and what the AI says back never leave your computer.
+**A voice assistant that lives on your own computer.** You talk, it answers out loud, and you can talk over it.
 
-- **Talk, don't type.** Your speech is typed into the session you are looking at.
-- **Hear the answer your way.** Brief by default. Say *"read it all"* for the whole reply, *"summarize that"* for a summary.
-- **Call it by name.** *"Jarvis, what's open?"*, *"Jarvis, switch to the portal session"*, *"Jarvis, ask the portal session to run the tests"*.
-- **Nothing to install into your agent.** It finds your AI sessions by itself and reads their replies from the agents' own transcripts.
-- **Nothing happens behind your back.** You see the real session. Anything Jarvis would type on its own needs your click on an approval window first.
-- **Talk over it.** Start speaking and it stops and listens (barge-in). Reliable on speakers too with the optional echo cancellation.
-- **Any local LLM, or none.** MLX, Ollama, or any OpenAI-compatible server (llama.cpp, LM Studio, vLLM) understands loosely worded requests. Without one, fixed phrases still work.
-- **Works with** Claude Code, Codex, Copilot CLI, aider, ollama, desktop apps: anything with a terminal or a text box.
+- **Your voice stays here.** Speech recognition ([Whisper](https://github.com/openai/whisper)) and the voice
+  ([Kokoro](https://github.com/hexgrad/kokoro)) run on your machine. Audio is never sent anywhere.
+- **Pick the brain.** With no setup the answers come from a model on your machine, and nothing leaves it. Add a Claude or OpenAI
+  API key and the answers come from that service instead: then the *text* of what you say is sent to it, the audio still is not.
+- **Its own window.** Run `jarvis-ai` and a window opens: what it heard, what it said, a box to type in, and the settings.
+- **No tools.** Jarvis only talks. It cannot open apps, read files, run commands or change anything on your computer, and it says so
+  when asked.
+- **Talk over it.** Start speaking and it stops and listens. Say "stop" to silence it.
+- **Keys are kept safe.** An API key goes into your system's credential store (Keychain, Credential Manager, Secret Service), never
+  into a file or a log, and the window can store or remove it but never show it.
 
-> **Status: early (v0.3).** Developed and tested on macOS with Apple Silicon. Linux, Intel Macs and Windows are supported by design and the
-> portable logic is unit-tested on all three in CI, but the audio path has not been exercised there yet. Reports and fixes are welcome.
+> **Status: early, not released.** Developed and tested on macOS with Apple Silicon. Linux, Intel Macs and Windows are supported by
+> design and the portable logic is unit-tested on all three in CI, but the audio path has not been exercised there yet. The window is
+> a page in your browser for now; a packaged app with an installer comes later.
+
+> **The earlier design is switched off.** Jarvis used to find Claude Code sessions on your machine, type your speech into them and
+> read their replies. That code is still here behind `discover = true`, and the sections below about sessions, sinks and approval
+> describe it. With the default settings none of it runs.
 
 ## Install
 
