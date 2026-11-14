@@ -82,6 +82,8 @@ DEFAULTS = {
     "claude_model": "claude-opus-5-5",
     "openai_model": "",               # e.g. the model name your OpenAI account offers; empty = OpenAI is not used
     "openai_url": "https://api.openai.com/v1",
+    "retention_days": 30,             # conversation history: -1 = save nothing, 0 = keep until you delete it, N = delete after N days
+    "speak_answers": True,            # false = answers appear in the window only
     "ui": True,                       # the window: a page served on this machine only
     "ui_port": 0,                     # 0 = pick a free port
     "approval": "dialog",             # how you approve actions taken for you: dialog (a window you click, default) | voice (say yes; weaker)
@@ -101,7 +103,8 @@ def ensure():
     return HOME
 
 
-SETTINGS = ("name", "voice", "speed", "brain", "claude_model", "openai_model", "openai_url", "call_me", "persona")   # what the window may change
+SETTINGS = ("name", "voice", "speed", "brain", "claude_model", "openai_model", "openai_url", "call_me", "persona",
+            "retention_days", "speak_answers")                         # what the window may change
 
 
 def load_settings():
@@ -121,6 +124,8 @@ def save_settings(changes):
     for k, v in changes.items():
         if k in SETTINGS:
             want = type(DEFAULTS[k])
+            if want is bool:
+                v = v if isinstance(v, bool) else str(v).lower() in ("1", "true", "yes", "on")
             d[k] = want(v) if not isinstance(v, want) else v
     write_secret("settings.json", json.dumps(d, indent=1))
     return d

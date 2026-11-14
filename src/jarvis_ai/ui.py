@@ -6,30 +6,41 @@ Safety of the little web server:
 - the Host header must be this machine, so another website cannot reach it by pointing a name at 127.0.0.1
 - changes need a header a plain web form cannot send, so another website cannot post to it
 - an API key can be stored or removed here, never read back"""
-import json, os, secrets, threading
+import json, os, re, secrets, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import assistant, brain, config, keys, llm
+from . import assistant, brain, config, keys, llm, store
 from .ui_page import PAGE
 
 MAX_BODY = 20_000
+ACCENTS = {"a": "American", "b": "British"}                 # the voice engine speaks English, so only English voices are offered
+SAMPLE = "Hello. This is how I sound. Shall we get started?"
 
 
 def voices():
+    """[{id, label}] of the English Kokoro voices on disk, e.g. af_bella -> 'Bella, American woman'."""
     try:
         import numpy as np
-        return sorted(np.load(config.path("models", "voices-v1.0.bin")).keys())
+        ids = sorted(np.load(config.path("models", "voices-v1.0.bin")).keys())
     except Exception:
         return []
+    out = []
+    for v in ids:
+        m = re.fullmatch(r"([ab])([fm])_([a-z0-9]+)", v)
+        if m:
+            out.append({"id": v, "label": f"{m.group(3).capitalize()}, {ACCENTS[m.group(1)]} {'woman' if m.group(2) == 'f' else 'man'}"})
+    return out
 
 
-def state(cfg=None):
+def state(jarvis, cfg=None):
     cfg = cfg or config.load()
+    snap = jarvis.snapshot()
     return {"status": assistant.status(), "paused": os.path.exists(config.path(".paused")),
-            "brain": brain.provider(cfg), "brain_text": brain.describe(cfg),
+            "brain": brain.provider(cfg), "brain_text": brain.describe(cfg), "cloud": brain.provider(cfg) in ("claude", "openai"),
             "keys": {n: keys.has(n) for n in keys.ENV}, "local": llm.backend(cfg) or "",
-            "settings": {k: cfg.get(k) for k in config.SETTINGS}, "voices": voices()}
+            "settings": {k: cfg.get(k) for k in config.SETTINGS}, "voices": voices(),
+            "conversation": {"id": snap["id"], "title": snap["title"], "saved": snap["saved"]}, "last_event": assistant.EVENTS.n}
 
 
 def make_handler(jarvis, token, port):
@@ -67,6 +78,7 @@ def make_handler(jarvis, token, port):
         def do_GET(self):
             u = urlparse(self.path)
             q = parse_qs(u.query)
+            one = lambda k: (q.get(k) or [""])[0]
             if not self._allowed(q if u.path == "/" else None):
                 return self._send(403, {"error": "open Jarvis from its own icon or command"})
             if u.path == "/":
@@ -74,13 +86,22 @@ def make_handler(jarvis, token, port):
                 return self._send(200, PAGE.encode(), "text/html",
                                   [("Set-Cookie", f"jarvis={token}; HttpOnly; SameSite=Strict; Path=/"), ("Content-Security-Policy", csp)])
             if u.path == "/state":
-                return self._send(200, state())
+                return self._send(200, state(jarvis))
             if u.path == "/events":
                 try:
-                    last = int((q.get("last") or ["0"])[0])
+                    last = int(one("last") or 0)
                 except ValueError:
                     last = 0
                 return self._send(200, assistant.EVENTS.since(last))
+            if u.path == "/conversations":
+                return self._send(200, store.conversations(one("q")[:200]))
+            if u.path == "/conversation":                   # the one on screen, saved or not
+                return self._send(200, jarvis.snapshot())
+            if u.path == "/export":
+                md = store.export_md(one("id"))
+                if not md:
+                    return self._send(404, {"error": "that conversation is gone"})
+                return self._send(200, md.encode(), "text/markdown", [("Content-Disposition", 'attachment; filename="jarvis-conversation.md"')])
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
@@ -96,13 +117,32 @@ def make_handler(jarvis, token, port):
             except ValueError:
                 return self._send(400, {"error": "bad request"})
             p = urlparse(self.path).path
+            cid = str(d.get("id", ""))[:64]
             try:
                 if p == "/say":
                     jarvis.hear(str(d.get("text", ""))[:4000], typed=True)
                 elif p == "/stop":
                     jarvis.interrupt()
-                elif p == "/clear":
-                    jarvis.clear()
+                elif p == "/new":
+                    jarvis.new()
+                elif p == "/open":
+                    if not jarvis.open(cid):
+                        return self._send(404, {"error": "that conversation is gone"})
+                elif p == "/rename":
+                    jarvis.rename(cid, d.get("title", ""))
+                elif p == "/delete":
+                    jarvis.forget(cid)
+                elif p == "/delete_all":
+                    jarvis.forget_all()
+                elif p == "/again":
+                    jarvis.say_again(d.get("text", ""))
+                elif p == "/preview":
+                    v = str(d.get("voice", ""))
+                    if v not in {x["id"] for x in voices()}:
+                        return self._send(400, {"error": "unknown voice"})
+                    jarvis.interrupt()
+                    from . import tts_client
+                    tts_client.speak(SAMPLE, v)
                 elif p == "/mic":
                     f = config.path(".paused")
                     if d.get("on"):
@@ -114,6 +154,8 @@ def make_handler(jarvis, token, port):
                         assistant.status("paused")
                 elif p == "/settings":
                     config.save_settings({k: v for k, v in d.items() if k in config.SETTINGS})
+                    if "retention_days" in d:
+                        jarvis.housekeeping(config.load(), force=True)
                 elif p == "/key":
                     name = str(d.get("name", ""))
                     if name not in keys.ENV:
@@ -126,7 +168,7 @@ def make_handler(jarvis, token, port):
                     return self._send(404, {"error": "not found"})
             except (ValueError, RuntimeError, TypeError) as e:
                 return self._send(400, {"error": str(e)})
-            self._send(200, state())
+            self._send(200, state(jarvis))
 
     return H
 

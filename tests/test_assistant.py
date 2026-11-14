@@ -2,7 +2,7 @@ import json, threading, time, urllib.error, urllib.request
 
 import pytest
 
-from jarvis_ai import assistant, brain, config, keys, ui
+from jarvis_ai import assistant, brain, config, keys, store, ui
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def test_answer_is_spoken_sentence_by_sentence_and_remembered(home, monkeypatch)
     a = assistant.Assistant(speak=lambda text, voice, add: said.append((text, add)), stop=lambda: None)
     run(a, "what is the capital of France")
     assert said == [("Paris.", False), ("It is in France.", True), ("And lovely.", True)]            # first replaces, the rest queue
-    assert a.history[-1] == {"role": "assistant", "content": "Paris. It is in France. And lovely"}
+    assert a.messages[-1]["role"] == "assistant" and a.messages[-1]["text"] == "Paris. It is in France. And lovely"
     run(a, "and of Spain")
     assert seen[-1][0]["content"] == "what is the capital of France" and seen[-1][-1] == {"role": "user", "content": "and of Spain"}
 
@@ -58,7 +58,7 @@ def test_talking_over_it_drops_the_rest(home, monkeypatch):
     a.interrupt(); gate.set()
     time.sleep(0.1)
     assert said == ["First sentence."]
-    assert a.history[-1] == {"role": "assistant", "content": "First sentence."}       # what you did hear stays as context ("go on")
+    assert a.messages[-1]["text"] == "First sentence."                                  # what you did hear stays as context ("go on")
 
 
 def test_a_brain_problem_is_said_not_swallowed(home, monkeypatch):
@@ -69,7 +69,8 @@ def test_a_brain_problem_is_said_not_swallowed(home, monkeypatch):
     said = []
     a = assistant.Assistant(speak=lambda text, voice, add: said.append(text), stop=lambda: None)
     run(a, "hello")
-    assert said == ["The Claude API key was not accepted. Check it in the settings."] and a.history == []
+    assert said == ["The Claude API key was not accepted. Check it in the settings."]
+    assert [m["role"] for m in a.messages] == ["user"]
 
 
 def test_brain_choice(home, monkeypatch):
@@ -102,8 +103,9 @@ def test_keys_are_validated_and_need_a_credential_store(home):
 def window(home, monkeypatch):
     heard = []
     agent = type("A", (), {"hear": lambda self, t, typed=False: heard.append(t), "interrupt": lambda self: heard.append("<stop>"),
-                           "clear": lambda self: heard.append("<clear>")})()
-    monkeypatch.setattr(ui, "voices", lambda: ["af_bella"])
+                           "new": lambda self: heard.append("<new>"), "housekeeping": lambda self, cfg, force=False: heard.append("<purge>"),
+                           "snapshot": lambda self: {"id": "", "title": "", "messages": [], "saved": False}})()
+    monkeypatch.setattr(ui, "voices", lambda: [{"id": "af_bella", "label": "Bella, American woman"}])
     url, srv = ui.start(agent, dict(config.DEFAULTS))
     yield url, heard
     srv.shutdown()
@@ -150,3 +152,77 @@ def test_window_settings_and_keys(window, home):
     assert "sk-ant-secret" not in "".join(p.read_text() for p in home.iterdir() if p.is_file())
     assert call(url, "/key", {"name": "other", "value": "x"}, token, h)[0] == 400
     assert "keys" in st and st["keys"] == {"anthropic": False, "openai": False} and "sk-" not in body
+
+
+def test_history_is_saved_reopened_and_continued(home, monkeypatch):
+    seen = []
+    monkeypatch.setattr(brain, "stream", lambda messages, cfg, cancel=None: (seen.append(messages), iter(["Noted."]))[1])
+    a = assistant.Assistant(speak=lambda *x: None, stop=lambda: None)
+    run(a, "remember that my cat is called Miso")
+    cid = a.conv
+    assert cid and store.get(cid)["title"] == "remember that my cat is called Miso"
+    assert [m["role"] for m in store.get(cid)["messages"]] == ["user", "assistant"] and store.get(cid)["messages"][1]["brain"] == ""
+    a.new()
+    assert a.conv == "" and a.messages == [] and store.get(cid)                      # a new conversation does not delete the old one
+    b = assistant.Assistant(speak=lambda *x: None, stop=lambda: None)                  # after a restart
+    assert b.open(cid) and not b.open("nope")
+    run(b, "what is my cat called")
+    assert seen[-1][0] == {"role": "user", "content": "remember that my cat is called Miso"}     # the saved lines are context again
+    assert len(store.get(cid)["messages"]) == 4 and [c["id"] for c in store.conversations()] == [cid]
+    assert [c["id"] for c in store.conversations("miso")] == [cid] and store.conversations("100%_x") == []
+    assert "**You:** remember" in store.export_md(cid)
+    b.rename(cid, "  The   cat ")
+    assert store.get(cid)["title"] == "The cat"
+    b.forget(cid)
+    assert store.get(cid) is None and b.conv == "" and b.messages == []
+
+
+def test_nothing_is_saved_when_history_is_off(home, monkeypatch):
+    monkeypatch.setattr(brain, "stream", lambda messages, cfg, cancel=None: iter(["Sure."]))
+    a = assistant.Assistant(cfg_loader=lambda: dict(config.DEFAULTS, retention_days=-1), speak=lambda *x: None, stop=lambda: None)
+    run(a, "this is private")
+    assert a.conv == "" and len(a.messages) == 2 and store.conversations() == []
+    assert not (home / "history.db").exists() or "private" not in (home / "history.db").read_bytes().decode("latin1")
+
+
+def test_old_conversations_expire_and_delete_all_empties_the_file(home):
+    import time
+    old = store.create("old one", now=time.time() - 40 * 86400)
+    store.add(old, "user", "ancient secret words", now=time.time() - 40 * 86400)
+    new = store.create("new one")
+    store.add(new, "user", "hello")
+    assert store.purge(0) == 0 and store.purge(-1) == 0 and len(store.conversations()) == 2      # 0 and -1 never delete by age
+    assert store.purge(30) == 1 and [c["id"] for c in store.conversations()] == [new] and store.get(old) is None
+    assert (home / "history.db").stat().st_mode & 0o077 == 0 or __import__("sys").platform.startswith("win")
+    store.delete_all()
+    assert store.conversations() == [] and b"hello" not in (home / "history.db").read_bytes()
+    assert store.add(new, "user", "late line") is False                                           # a deleted conversation is not revived
+
+
+def test_window_history_endpoints(home, monkeypatch):
+    monkeypatch.setattr(brain, "stream", lambda messages, cfg, cancel=None: iter(["Hello there."]))
+    monkeypatch.setattr(ui, "voices", lambda: [{"id": "af_bella", "label": "Bella, American woman"}])
+    said = []
+    a = assistant.Assistant(speak=lambda text, voice, add: said.append(text), stop=lambda: None)
+    url, srv = ui.start(a, dict(config.DEFAULTS))
+    try:
+        token, h = url.split("k=")[1], {"X-Jarvis": "1"}
+        run(a, "good morning")
+        code, body, _ = call(url, "/conversations", cookie=token)
+        rows = json.loads(body)
+        assert code == 200 and rows[0]["title"] == "good morning" and rows[0]["n"] == 2
+        cid = rows[0]["id"]
+        snap = json.loads(call(url, "/conversation", cookie=token)[1])
+        assert snap["id"] == cid and [m["text"] for m in snap["messages"]] == ["good morning", "Hello there."]
+        assert "**Jarvis:** Hello there." in call(url, "/export?id=" + cid, cookie=token)[1]
+        assert call(url, "/export?id=" + cid)[0] == 403                                             # history needs the secret too
+        assert call(url, "/again", {"text": "Hello there."}, token, h)[0] == 200 and said[-1] == "Hello there."
+        assert call(url, "/preview", {"voice": "zz_nobody"}, token, h)[0] == 400
+        assert json.loads(call(url, "/new", {}, token, h)[1])["conversation"]["id"] == ""
+        assert json.loads(call(url, "/open", {"id": cid}, token, h)[1])["conversation"]["title"] == "good morning"
+        assert call(url, "/open", {"id": "missing"}, token, h)[0] == 404
+        assert json.loads(call(url, "/settings", {"retention_days": "7", "speak_answers": False}, token, h)[1])["settings"]["retention_days"] == 7
+        assert config.load()["speak_answers"] is False
+        assert call(url, "/delete_all", {}, token, h)[0] == 200 and store.conversations() == []
+    finally:
+        srv.shutdown()
