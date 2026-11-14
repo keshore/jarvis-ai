@@ -179,3 +179,19 @@ def claude_hook_message(d):
         return last
     except Exception:
         return ""
+
+
+# ---------- what the microphone picks up that is not speech to act on ----------
+JUNK = {"", "you", "thank you", "thanks", "thanks for watching", "bye", "goodbye",
+        "we'll see you next time", "see you next time", "see you in the next video",
+        "thank you for watching", "thanks for listening", "i'll see you next time",
+        "subtitles by the amara.org community"}
+
+# thinking noises ("Hmm.", "Mmm.", "Uh...") are not something to act on; "mm-hmm" and "uh-huh" are left alone (they mean yes)
+FILLER = re.compile(r"(?:h+m+|m{2,}|u+h+|u+m+|e+r+m*|a+h+)(?:[\s,.!?\u2026]+(?:h+m+|m{2,}|u+h+|u+m+|e+r+m*|a+h+))*")
+
+
+def noise(text):
+    """True for what should be dropped unheard: Whisper's stock phrases on silence, bare punctuation, thinking noises."""
+    t = text.lower().strip(" .!?,\u2026")
+    return t in JUNK or bool(re.fullmatch(r"[\W_]*", text)) or bool(FILLER.fullmatch(t))

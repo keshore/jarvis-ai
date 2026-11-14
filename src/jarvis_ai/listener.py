@@ -18,21 +18,6 @@ MAX_UTT = 30.0                   # s
 PRE_ROLL = 0.3                   # s kept before speech onset
 TTS_TAIL = 0.6                   # s to stay deaf after the voice stops talking
 
-JUNK = {"", "you", "thank you", "thanks", "thanks for watching", "bye", "goodbye",
-        "we'll see you next time", "see you next time", "see you in the next video",
-        "thank you for watching", "thanks for listening", "i'll see you next time",
-        "subtitles by the amara.org community"}
-
-# thinking noises ("Hmm.", "Mmm.", "Uh...") are not something to act on; "mm-hmm" and "uh-huh" are left alone (they mean yes)
-FILLER = re.compile(r"(?:h+m+|m{2,}|u+h+|u+m+|e+r+m*|a+h+)(?:[\s,.!?\u2026]+(?:h+m+|m{2,}|u+h+|u+m+|e+r+m*|a+h+))*")
-
-
-def noise(text):
-    """True for what should be dropped unheard: Whisper's stock phrases on silence, bare punctuation, thinking noises."""
-    t = text.lower().strip(" .!?,\u2026")
-    return t in JUNK or bool(re.fullmatch(r"[\W_]*", text)) or bool(FILLER.fullmatch(t))
-
-
 CFG = {}
 
 
@@ -271,7 +256,7 @@ def main():
                 text, confident = tr.transcribe(audio, glossary)
                 if not confident:
                     continue                                     # likely a hallucination on noise
-                if noise(text):
+                if textprep.noise(text):
                     continue
                 fr = STATE.pop("fragment", None)
                 if fr and time.time() - fr[1] < 12:              # the rest of a sentence you paused in

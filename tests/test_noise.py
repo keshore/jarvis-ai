@@ -1,6 +1,6 @@
 import pytest
 
-from jarvis_ai.listener import noise
+from jarvis_ai.textprep import noise
 
 
 @pytest.mark.parametrize("t", ["Hmm.", "Mmm.", "hm", "Uh...", "Um, uh.", "Hmm, hmm.", "Thank you.", "...", ""])
