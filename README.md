@@ -175,7 +175,7 @@ Each sentence waits for the model first (about a second on a 3 to 4B model), so 
 | `persona`, `call_me`, `jarvis_voice` | dry-witted British assistant, none, none | Jarvis's character, what it calls you, its Kokoro voice |
 | `frontend` | commands | `off`: exact phrases only. `commands`: loose wording, plus the local LLM for short unusual requests. `assistant`: the local LLM sees every sentence, of any length: it can run a command or forward your sentence lightly cleaned of dictation slips |
 | `mode` | brief | `brief` or `full` |
-| `voice`, `speed` | bm_george, 1.05 | Kokoro voice and speed |
+| `voice`, `speed` | af_bella, 1.05 | Kokoro voice and speed |
 
 ## Privacy
 

@@ -31,7 +31,7 @@ DEFAULTS = {
     "stt_model": "big",               # Whisper large-v3-turbo. (Weak CPU? set an explicit smaller name, e.g. "small.en")
     "language": "en",
     # --- text to speech (Kokoro, runs on any CPU) ---
-    "voice": "bm_george",
+    "voice": "af_bella",
     "speed": 1.05,
     # --- where your speech goes when no session is registered ---
     "sink": "auto",                   # auto | iterm | tmux | keystroke | pty | exec | llm | stdout
