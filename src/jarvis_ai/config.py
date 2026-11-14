@@ -55,10 +55,12 @@ DEFAULTS = {
     "app": "",                        # sink=keystroke: app to bring to front before typing
     # --- optional local LLM (summaries, chat sink). Nothing breaks without it. ---
     "summarizer": "auto",             # auto (use an LLM if one is available) | llm | extractive
-    "llm_backend": "auto",            # auto | mlx (Apple Silicon) | ollama (any machine) | openai (any OpenAI-compatible server)
+    "llm_backend": "auto",            # auto | mlx (Apple Silicon) | llamacpp (built in, any machine) | ollama | openai (any OpenAI-compatible server)
     "llm_url": "",                    # backend openai: e.g. http://127.0.0.1:8080/v1 (llama.cpp), http://127.0.0.1:1234/v1 (LM Studio)
     "llm_api_model": "",              # backend openai: model name, if the server needs one
     "llm_model": "auto",     # backend mlx: any MLX model, or "auto" (picks 1.7B / 4B / 8B by memory)
+    "gguf_model": "auto",             # backend llamacpp (built in; Windows, Linux, Intel Macs): auto = Qwen3 1.7B / 4B / 8B by installed memory
+    "llm_ctx": 8192,                  # backend llamacpp: context window in tokens
     "ollama_model": "auto",           # backend ollama; auto = qwen3 1.7b / 4b / 8b by installed memory
     "ollama_url": "http://127.0.0.1:11434",
     "llm_idle_seconds": 300,          # unload the model from memory after this much idle time

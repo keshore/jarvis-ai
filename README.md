@@ -141,7 +141,10 @@ Nothing needs it. When one is available, "summarize that" uses it instead of the
 - **Apple Silicon:** `pipx inject jarvis-ai mlx-lm` (or `pip install 'jarvis-ai[llm]'`), then `jarvis-ai setup --llm`.
   Qwen3-4B, 2.3 GB, loaded on demand and unloaded after five idle minutes. `llm_model = "auto"` picks a size by memory
   (1.7B under 12 GB, 4B under 22 GB, 8B above); any MLX model name works.
-- **Any machine (Windows, Linux, Intel Macs):** install [Ollama](https://ollama.com), then `jarvis-ai setup --llm` fetches a Qwen3 model sized to your memory (1.7b, 4b or 8b). It is detected automatically. Not yet verified on a real Windows or Linux machine.
+- **Windows, Linux, Intel Macs:** `jarvis-ai setup --llm`. It installs llama.cpp into Jarvis itself (a prebuilt package, nothing to
+  compile), fetches a Qwen3 model sized to your memory (1.7B, 4B or 8B) and checks that it answers. If that fails on your machine it
+  falls back to [Ollama](https://ollama.com) and offers to install it with your system's installer; nothing is installed without a
+  typed yes. Run on a Mac only so far; not yet verified on a real Windows or Linux machine.
 - **Any other local server** that speaks the OpenAI chat API (llama.cpp, LM Studio, vLLM, Jan): set `llm_url`, e.g.
   `llm_url = "http://127.0.0.1:8080/v1"` (and `llm_api_model` if the server wants a model name). A key, if needed, is read from the
   `JARVIS_AI_LLM_KEY` environment variable. Keep the address on `127.0.0.1`: a server elsewhere receives what you say.

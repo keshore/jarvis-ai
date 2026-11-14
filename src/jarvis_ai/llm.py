@@ -6,7 +6,7 @@ summary and the `llm` sink is unavailable. Backends:
   openai  any server that speaks the OpenAI chat API: llama.cpp, LM Studio, vLLM, Jan, LocalAI ... (set `llm_url`).
           Pointing it at a server on another machine sends your sentences there: keep it on 127.0.0.1 to stay local.
 """
-import gc, json, re, threading, time, urllib.request
+import atexit, gc, json, re, threading, time, urllib.request
 
 from . import platform_
 
@@ -46,6 +46,44 @@ def ram_gb():
         return os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / 2 ** 30
     except Exception:
         return 0.0
+
+
+# built-in llama.cpp (Windows, Linux, Intel Macs): the same family and sizes, as GGUF files from Hugging Face
+GGUF_BY_RAM = ((22, "Qwen/Qwen3-8B-GGUF/Qwen3-8B-Q4_K_M.gguf"), (12, "Qwen/Qwen3-4B-GGUF/Qwen3-4B-Q4_K_M.gguf"),
+               (0, "Qwen/Qwen3-1.7B-GGUF/Qwen3-1.7B-Q8_0.gguf"))
+
+
+def gguf_name(cfg):
+    """`gguf_model = "auto"` picks by memory. Otherwise "<owner>/<repo>/<file>.gguf" on Hugging Face, or a path to a .gguf file."""
+    m = cfg.get("gguf_model", "auto")
+    if m and m != "auto":
+        return m
+    gb = ram_gb()
+    return next(name for floor, name in GGUF_BY_RAM if gb >= floor)
+
+
+def gguf_path(cfg, download=False):
+    """Local path of the GGUF file; '' when it is not on disk (and download is False)."""
+    import os
+    name = gguf_name(cfg)
+    if os.path.isfile(os.path.expanduser(name)):
+        return os.path.expanduser(name)
+    try:
+        from huggingface_hub import hf_hub_download
+        repo, file = name.rsplit("/", 1)
+        return hf_hub_download(repo, file, local_files_only=not download)
+    except Exception:
+        if download:
+            raise
+        return ""
+
+
+def _llama_available():
+    try:
+        import llama_cpp  # noqa: F401
+        return True
+    except Exception:
+        return False
 
 
 def ollama_name(cfg):
@@ -97,10 +135,12 @@ def _mlx_cached(cfg):
 
 
 def backend(cfg):
-    """Which backend can answer right now: 'mlx', 'ollama' or None."""
+    """Which backend can answer right now: 'mlx', 'llamacpp', 'ollama', 'openai' or None."""
     want = cfg.get("llm_backend", "auto")
     if want in ("auto", "mlx") and _mlx_available() and _mlx_cached(cfg):
         return "mlx"
+    if want in ("auto", "llamacpp") and _llama_available() and gguf_path(cfg):
+        return "llamacpp"
     if want in ("auto", "ollama"):
         tags = _ollama_models(cfg)
         if tags is not None and any(t == ollama_name(cfg) or t.split(":")[0] == ollama_name(cfg) for t in tags):
@@ -125,6 +165,12 @@ def loaded():
 # ---------- mlx ----------
 def _unload():
     with _lock:
+        close = getattr(_state["model"], "close", None)        # llama.cpp must free its model before the process ends
+        if close:
+            try:
+                close()
+            except Exception:
+                pass
         _state.update(model=None, tok=None, name=None)
     gc.collect()
     try:
@@ -158,6 +204,24 @@ def _gen_mlx(messages, cfg, max_tokens):
         out = gen(model, tok, prompt=prompt, max_tokens=max_tokens, verbose=False)
     _touch(cfg)
     return out
+
+
+# ---------- llama.cpp, in this process ----------
+atexit.register(lambda: _unload())
+
+
+def _gen_llama(messages, cfg, max_tokens):
+    from llama_cpp import Llama
+    with _lock:
+        name = gguf_name(cfg)
+        if _state["model"] is None or _state["name"] != name:
+            _state["model"] = Llama(model_path=gguf_path(cfg), n_ctx=int(cfg.get("llm_ctx", 8192)), n_gpu_layers=-1, verbose=False)
+            _state["tok"], _state["name"] = None, name
+        if "qwen3" in name.lower() and messages and messages[-1]["role"] == "user":      # Qwen3's switch for "answer directly, do not think aloud"
+            messages = messages[:-1] + [dict(messages[-1], content=messages[-1]["content"] + " /no_think")]
+        out = _state["model"].create_chat_completion(messages=messages, max_tokens=max_tokens)
+    _touch(cfg)
+    return out["choices"][0]["message"]["content"] or ""
 
 
 # ---------- ollama ----------
@@ -205,9 +269,9 @@ def _gen_openai(messages, cfg, max_tokens):
 def generate(messages, cfg, max_tokens=None):
     b = backend(cfg)
     if b is None:
-        raise RuntimeError("no local LLM available (install mlx-lm on Apple Silicon, run Ollama, or set llm_url to an OpenAI-compatible server)")
+        raise RuntimeError("no local LLM available (run `jarvis-ai setup --llm`, or set llm_url to an OpenAI-compatible server)")
     n = max_tokens or int(cfg["llm_max_tokens"])
-    out = {"mlx": _gen_mlx, "ollama": _gen_ollama, "openai": _gen_openai}[b](messages, cfg, n)
+    out = {"mlx": _gen_mlx, "llamacpp": _gen_llama, "ollama": _gen_ollama, "openai": _gen_openai}[b](messages, cfg, n)
     return re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
 
 

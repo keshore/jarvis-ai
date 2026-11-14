@@ -54,6 +54,11 @@ def _llm(cfg):
         size = _hf(name) if llm._mlx_cached(cfg) else 0
         return {"job": "local LLM", "model": name, "engine": "MLX (Apple GPU)", "bytes": size, "ready": size > 0,
                 "note": (picked if cfg.get("llm_model", "auto") == "auto" else "set in config") if size else "optional: run `jarvis-ai setup --llm`"}
+    if want in ("auto", "llamacpp") and llm._llama_available() and not (want == "auto" and platform_.APPLE_SILICON and llm._mlx_available()):
+        path = llm.gguf_path(cfg)
+        size = _size(os.path.realpath(path)) if path else 0
+        return {"job": "local LLM", "model": llm.gguf_name(cfg).rsplit("/", 1)[-1], "engine": "llama.cpp (built in)", "bytes": size, "ready": size > 0,
+                "note": (picked if cfg.get("gguf_model", "auto") == "auto" else "set in config") if size else "optional: run `jarvis-ai setup --llm`"}
     if want in ("auto", "openai") and cfg.get("llm_url") and want != "ollama":
         up = llm.backend(cfg) == "openai"
         return {"job": "local LLM", "model": cfg.get("llm_api_model") or "(server default)", "engine": f"server at {cfg['llm_url']}",
@@ -62,7 +67,7 @@ def _llm(cfg):
     tags = llm._ollama_models(cfg)
     ready = bool(tags) and any(t == name or t.split(":")[0] == name for t in tags)
     note = (picked if cfg.get("ollama_model", "auto") == "auto" else "set in config") if ready else (
-        "optional: install Ollama (https://ollama.com), then `jarvis-ai setup --llm`" if tags is None else "optional: run `jarvis-ai setup --llm`")
+        "optional: run `jarvis-ai setup --llm`")
     if platform_.APPLE_SILICON and not ready and want != "ollama":       # on Apple Silicon the model would run on MLX once mlx-lm is installed
         return {"job": "local LLM", "model": llm.model_name(cfg), "engine": "MLX (Apple GPU)", "bytes": 0, "ready": False,
                 "note": "optional: `pipx inject jarvis-ai mlx-lm`, then `jarvis-ai setup --llm`"}

@@ -44,6 +44,66 @@ def _clear_off():
         pass
 
 
+LLAMA_WHEELS = "https://abetlen.github.io/llama-cpp-python/whl/cpu"      # llama-cpp-python's own prebuilt wheels, so nothing has to compile
+
+
+def _pip_llama():
+    """Install the built-in engine into this environment. Prebuilt wheel first; never fatal."""
+    print("installing the built-in LLM engine (llama.cpp) ...")
+    r = platform_.run([sys.executable, "-m", "pip", "install", "--quiet", "--prefer-binary", "--extra-index-url", LLAMA_WHEELS,
+                       "llama-cpp-python"], timeout=1800)
+    import importlib
+    importlib.invalidate_caches()
+    return bool(r and r.returncode == 0)
+
+
+def _install_ollama(ask=input):
+    """Offer to install Ollama with the system's own installer. Nothing is installed without a typed yes."""
+    import shutil
+    if platform_.IS_WIN and shutil.which("winget"):
+        cmd, shown = ["winget", "install", "-e", "--id", "Ollama.Ollama"], "winget install -e --id Ollama.Ollama"
+    elif platform_.IS_MAC and shutil.which("brew"):
+        cmd, shown = ["brew", "install", "ollama"], "brew install ollama"
+    elif platform_.IS_LINUX and shutil.which("curl"):
+        cmd, shown = ["sh", "-c", "curl -fsSL https://ollama.com/install.sh | sh"], "curl -fsSL https://ollama.com/install.sh | sh   (asks for your password)"
+    else:
+        print("  install Ollama from https://ollama.com, then run `jarvis-ai setup --llm` again")
+        return False
+    if not sys.stdin.isatty():
+        print(f"  to install Ollama run:  {shown}\n  then `jarvis-ai setup --llm` again")
+        return False
+    if ask(f"  Install Ollama now with:  {shown}  ? [y/N] ").strip().lower() not in ("y", "yes"):
+        return False
+    return subprocess.run(cmd).returncode == 0 and shutil.which("ollama") is not None
+
+
+def _setup_llm(cfg, llm):
+    """The optional local LLM. Apple Silicon: MLX. Elsewhere: llama.cpp built in; if that cannot be installed or run, Ollama."""
+    import shutil
+    if platform_.APPLE_SILICON and llm._mlx_available():
+        from huggingface_hub import snapshot_download
+        print(f"fetching local model {llm.model_name(cfg)} ...")
+        snapshot_download(llm.model_name(cfg))
+        return
+    if cfg.get("llm_backend", "auto") in ("auto", "llamacpp") and (llm._llama_available() or (_pip_llama() and llm._llama_available())):
+        try:
+            print(f"fetching local model {llm.gguf_name(cfg)} ...")
+            llm.gguf_path(cfg, download=True)
+            llm._gen_llama([{"role": "user", "content": "Say OK."}], cfg, 8)       # prove it loads and answers on this machine
+            print("  built-in engine works")
+            return
+        except Exception as e:
+            print(f"  the built-in engine failed here ({e}); using Ollama instead")
+    else:
+        print("  the built-in engine could not be installed here; using Ollama instead")
+    name = llm.ollama_name(cfg)
+    if not shutil.which("ollama") and not _install_ollama():
+        return
+    print(f"fetching local model {name} through Ollama ...")
+    if subprocess.run(["ollama", "pull", name]).returncode != 0:
+        print(f"  could not fetch it. Start Ollama, then run:  ollama pull {name}")
+
+
 def cmd_setup(a):
     from . import llm, stt
     cfg = config.load()
@@ -60,19 +120,7 @@ def cmd_setup(a):
         print(f"fetching speech model '{name}' for the {stt.backend_name(cfg)} backend ...")
         print("  ->", stt.prefetch(cfg, name)[1])
     if a.llm:
-        if platform_.APPLE_SILICON and llm._mlx_available():
-            from huggingface_hub import snapshot_download
-            print(f"fetching local model {llm.model_name(cfg)} ...")
-            snapshot_download(llm.model_name(cfg))
-        else:
-            import shutil
-            name = llm.ollama_name(cfg)
-            if shutil.which("ollama"):
-                print(f"fetching local model {name} through Ollama ...")
-                if subprocess.run(["ollama", "pull", name]).returncode != 0:
-                    print(f"  could not fetch it. Start Ollama, then run:  ollama pull {name}")
-            else:
-                print(f"optional local LLM: install Ollama (https://ollama.com), then run:  ollama pull {name}")
+        _setup_llm(cfg, llm)
     gl = config.path("glossary.txt")
     if not os.path.exists(gl):
         with open(gl, "w") as fh:
